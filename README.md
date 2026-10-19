@@ -1,64 +1,69 @@
-# Mantrix External Release Controller — Public-only bootstrap
+# Mantrix Release Controller
 
-Status: **unactivated development template**. This directory is the **entire allowed public export**. It is not a GitHub-hosted Controller today.
+**A small, public boundary for reviewing how Mantrix releases may be authorized.**
+
+Software can change quickly. Release authority should not. This repository is intentionally narrow: it aims to make release decisions understandable, reviewable, and difficult to grant by accident.
+
+> **Status: DEVELOPMENT ONLY — NOT RELEASE-AUTHORIZED.**
+>
+> The public repository exists and its `main` branch currently has an active `protect-main` ruleset. The controller implementation and read-only test workflow remain in [Draft PR #1](https://github.com/ihacked07/mantrix-release-controller/pull/1), **not merged into `main`**. Passing unit tests does not permit signing, publishing or deployment.
+
+## Why this exists
+
+Mantrix keeps private application development separate from the authority to release software. Public visibility makes this limited policy surface easier to inspect and permits branch rules on our current GitHub plan. Being public is **not** a security guarantee; the effective controls and independent approval must be verified.
+
+We prefer evidence over assumptions, explicit boundaries over implicit trust, and a clear **BLOCKED** over pretending a missing security control has passed.
+
+## What's included in the development proposal
+
+The allowlisted bootstrap bundle in Draft PR #1 contains:
+
+| Component | Purpose | Authority |
+| --- | --- | --- |
+| `verify_approval.py` | Verify a detached, strictly scoped Ed25519 Owner approval using an **externally pinned** public key | Offline verification only |
+| `reserve_approval.py` | Demonstrate atomic, single-use approval-ID reservation | Local synthetic tests; **not** a production replay ledger |
+| `collect_source_evidence.py` | Demonstrate fail-closed, read-only exact-SHA GitHub CI evidence collection | No live App installation; **not** a release decision |
+| `tests/` | Positive and negative fixture tests with disposable, synthetic test keys | Development tests only |
+| `.github/workflows/controller-policy-ci.yml` | Run the policy unit tests with `contents: read` on a GitHub-hosted runner | No signing, registry write or deployment |
+| `docs/ACTIVATION_GATES.md` | Document required independent release and deployment gates | Draft requirements only |
+
+The public CI has passed 41 synthetic/structural tests for the initially imported development SHA. Each subsequent change requires its **own exact-SHA** test result.
 
 ## Trust boundaries
 
-1. **Private repository** \`ihacked07/mantrix\` retains all proprietary application source, private CI, production deployment and VM105 worker code. Never make it public.
-2. **Proposed public repository** \`ihacked07/mantrix-release-controller\` holds only this reviewed controller source and a pinned Owner **public** verification key. Public GitHub Free protected \`main\`, separate required checks and no bypass are prerequisites; branch metadata \`protected=true\` must be observed.
-3. **Trusted release workflow** executes from verified, protected controller ref and SHA on isolated GitHub-hosted runner, never VM105, with no checkout of candidate-controlled workflow definitions into a privileged runtime.
-4. **Owner approval** is the detached Ed25519 signature of a canonical JSON payload specifying exact candidate SHA/ref, controller SHA/ref, purpose and a 24-hour or shorter validity. The Owner **private** key must never enter GitHub or any CI/VM105 worker. A public key alone is insufficient to authorize an action without verified signatures.
-5. **Evidence collection** needs a separately authorized GitHub App installation with minimum required read permissions for private repository actions, content, and effective protection. The public repo's default \`GITHUB_TOKEN\` cannot read the private repository. Before activation, the Owner must approve GitHub App authorization and prove a **protected public controller** plus an **authenticated immutable private-source commit SHA**. The private repository remains unprotected on GitHub Free: the controller must NOT represent a private branch as protected, and must instead require an Owner-signed exact SHA, verified source bytes, stable SHA-bound approval and drift checks. An attempt to use the old production-only private-branch release gate MUST remain **BLOCKED**, never silently waived.
-6. **Post-build** requires cryptographically verified immutable manifest, image digests, provenance, SPDX, Cosign signature and exact controller OIDC identity. Pre-build approval **cannot** be fulfilled by a fabricated \`cosign_verified=true\` field.
-7. **VM105** is development CI and unsigned build worker only. Never load publication credentials or Owner signing key into VM105; it is not sufficient provenance for release signing.
-8. **Gate 3 remains separately Owner-authorized** after C2 firewall effective ingress, portable offhost rollback, decrypt/scratch restore, legal/compliance and other Pre-P10 controls.
+- **Private source:** `ihacked07/mantrix` remains private. No proprietary application source, customer information or internal deployment configuration belongs here.
+- **Protected policy:** `main` is the intended controller trust boundary, not an arbitrary PR branch. At bootstrap, the active ruleset requires `offline-owner-approval`, blocks forced updates/deletion and requires a PR. **Required human approvals remain at zero; independent review is not yet enforced.**
+- **Owner intent:** a future Owner signature must bind an exact candidate SHA/ref, controller SHA/ref, purpose and short expiry. The Owner's **private signing key stays offline** and never enters GitHub, VM105 or CI.
+- **Separate workers:** VM105 is a development/test worker, not a trusted publisher or independent release authority.
+- **Authenticated observations:** any future private-source CI evidence needs separately authorized, least-privilege GitHub App access and independently verified source bytes. A public repository `GITHUB_TOKEN` cannot automatically read private Mantrix source.
+- **Isolated release:** a future release builder must run from trusted, pinned policy in an isolated environment, not execute candidate-controlled workflow scripts with release credentials.
+- **Independent post-build checks:** source-to-image digests, immutable manifests, SPDX provenance, Cosign signature/attestation and exact workflow identity must be verified independently.
+- **Separate deployment gate:** even a valid signed build does not authorize Production or Gate 3 deployment.
 
-## Bootstrap sequence — no mutation by template
+## Known gaps — explicit release blockers
 
-- Create a **new public** repository with exactly the proposed name; keep \`ihacked07/mantrix\` private. The connected GitHub integration has no create-repository action; do not treat this directory as the created repository. A separate Owner setup in GitHub UI or an authorized Work browser flow is required.
-- Export **only** this allowlisted directory into that new repository after review; verify the Git tree contains no private Mantrix source, secrets or internal docs.
-- Before privileged workflows are added: protect \`main\` (deny force-push/deletion, require PR and passing checks, no admin bypass); verify effective rulesets/branch status with an authorized GitHub account or App.
-- Generate and retain Ed25519 **private key exclusively offline** with the Owner; export public PEM after out-of-band verification and pin its SHA256 in protected controller history. Do not commit a test key or Owner private key.
-- Run the included negative tests via the isolated **read-only** CI template.
-- Establish an independent, auditable GitHub App credentials path for private repository read-only evidence, then build a pre-release collector attesting actual GitHub responses rather than user JSON. **Private branch protection is NOT a required claim for Model B**; instead verify immutable SHA and detached Owner signature. This adaptation requires a separately reviewed controller policy. This step is **not implemented** in this bundle.
-- Build a separate **post-build** real Cosign verifier, using SHA-bound manifest and trusted keyless identity. Not implemented and no real signing performed.
-- Separately request explicit Owner activation approval. **No privileged workflow, signing, publishing, merge, deployment or billing change is authorized by this template.**
+1. The controller code is in an **unmerged Draft PR**; current protections are not a claim that the controller is operational.
+2. No independently enrolled Owner public verification key, real Owner approvals or trusted offline signing ceremony exist.
+3. The SQLite proof is not a durable, independently controlled replay ledger. Hosted-runner filesystems are ephemeral; replay protection needs a trusted, recoverable single-writer store and continuity checks.
+4. The source evidence collector has not authenticated real private-source runs using a least-privilege App.
+5. Checking CI job names and conclusions alone cannot prove the **reviewed security workflow definition** ran; candidate-controlled policy changes must not become trusted evidence.
+6. No isolated release build, real Cosign signature, digest-bound release manifest, attestation verification, independent reviewer gate or production consumer trust migration is active.
+7. Existing production-only policies must not be weakened or silently repurposed to make the new model pass.
 
-## Offline approval format
+**If any release prerequisite is missing, the result is BLOCKED.** A green development CI badge is not an exception.
 
-\`{"payload": {...}, "signature_b64": "..."}\`. The payload contains exact fields enforced by \`verify_approval.py\`. It is serialized using JSON keys sorted, no spacing, UTF-8 and \`ensure_ascii=False\` before signing. The verifier requires an exact separately pinned SHA/ref from the trusted controller. Deterministic tests inject a fixture time into the imported \`verify()\` function. The executable CLI has **no clock-override option** and always uses its UTC host clock. Unknown \`--now\` flags are rejected.
+## Maintainer note
 
-The signature validates *Owner-signed build intent only*. It is not a second-human reviewer, a deployment consent, a rollback proof or a substitute for protected Branch/Actions verification.
+The point is not to make security sound impressive. It is to be able to explain exactly what has been verified, what has not, and who is allowed to make the next decision.
 
-## CI
+A slower, traceable release is preferable to an unproven shortcut. That is the standard this controller is being built toward.
 
-The included \`.github/workflows/controller-policy-ci.yml\` runs **only** the offline unit tests, with \`contents:read\`, no secrets, no \`id-token:write\`, no registry write, no publish/dispatch permissions. It becomes active only if the template is deliberately exported into the root of a separately created public repository.
+## Development and disclosure
 
-## Development-only single-use approval ledger
+- Review changes through small pull requests and read-only checks. Do not include secrets in test fixtures, workflow logs, PR descriptions or commit history.
+- No real Owner private key, API token, SSH credential, production publishing secret, customer data or internal infrastructure details may be committed.
+- The public test workflow is intentionally unprivileged. Never give public PR-triggered jobs a trusted release token.
+- No open-source license has been granted by the absence of a license file.
+- This README documents *current development intent and known limits*, not a security certification. Reverify GitHub rules, source SHA, tests and effective permissions before granting any future authority.
 
-`reserve_approval.py` verifies the same offline Owner Ed25519 approval and then
-atomically reserves its unique `approval_id` using a SQLite primary-key constraint
-and `BEGIN IMMEDIATE`. The DB parent must be an absolute, existing Owner-only
-directory; symlink/database permission checks fail closed. Reuse of the ID is
-rejected even if a new approval envelope with the same ID is signed.
-
-**CRITICAL: This is only a local proof of the reservation mechanism.**
-GitHub-hosted Actions jobs have ephemeral filesystems. A database placed in an
-ephemeral job workspace does **not** implement global replay prevention.
-Before any operational use, Owner must authorize a durable, independently
-controlled, backed-up trusted ledger with exclusive writes, continuity checks,
-recovery procedure, and a fail-closed policy during outages. No local test, PR
-or synthetic reservation authorizes image signing, publishing or Gate 3.
-
-## Canonical job completeness review
-
-The read-only collector now requires exact job names for all three canonical
-workflows: CI (8 jobs), Container Security (11 jobs), and Supply Chain
-Security (9 required jobs plus 1 intentionally skipped native-dependency
-review). The **only** permitted skipped job is `Dependency Review (Native
-Capability)` in the canonical Supply Chain `workflow_dispatch` run. The
-full-tree fallback and all other security jobs must succeed. This pinned
-allowlist must be independently updated when workflows change; no automatic
-relaxation or user-controlled job list is allowed. Neither this structural
-contract nor development tests prove real hosted-runner provenance or release
-signing authority.
+See [Activation Gates](docs/ACTIVATION_GATES.md) for the release-stage threat boundaries and required owner decisions.
