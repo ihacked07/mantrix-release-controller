@@ -94,3 +94,13 @@ actor evading the separation of duties. A later release-signing/publishing
 decision still requires a fresh trusted policy check, separate Owner approval,
 authenticated exact-SHA provenance and replay protection. The implementation
 remains unmerged, unprivileged and development-only.
+
+## Proposed trust-pin review (not accepted)
+
+A **separate stacked Draft PR** contains a proposed CI YAML pin update
+to the exact private PR #110 development blob. The proposal has a
+security-oriented change assessment in
+[`docs/CI_POLICY_PIN_REVIEW_PR110.md`](CI_POLICY_PIN_REVIEW_PR110.md).
+It remains pending Owner policy review. Public Controller PR #1 keeps the
+previous conservative pin until deliberate acceptance. Neither Draft PR
+authorizes release or changes the production/frozen repository.

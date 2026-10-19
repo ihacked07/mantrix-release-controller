@@ -217,7 +217,7 @@ class ControllerEvidenceTests(unittest.TestCase):
 
     def test_workflow_blob_pins_require_independent_review(self):
         self.assertEqual(c.TRUSTED_WORKFLOW_BLOBS["ci"],
-                         "0725a12dd0bf3aec273a2f17c808ffb6bad6e87e")
+                         "c37404b8911efc3949e4e6f15dde1221a1d54c74")
         self.assertEqual(len(c.TRUSTED_WORKFLOW_BLOBS), 3)
         with self.assertRaisesRegex(c.Refused, "reviewed trust pin"):
             self.capture("tampered_workflow")

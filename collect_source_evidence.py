@@ -38,14 +38,18 @@ TRUST_PROFILES = {
 }
 
 
-# Bootstrap trusted-file identities taken from the independently reviewed frozen
-# Mantrix source SHA 4f0e3f0f2debe91d02a89aaac5af8f00f6381402.
+# Proposed CI YAML pin update for separate Owner/code review:
+# CI pinned SHA originates from private development PR #110 exact HEAD
+# 9ab0e6ff9103d89ff57359d77495d2b05f624fc4. This proposal does NOT independently approve or
+# activate the new policy. Remaining workflows/scripts preserve frozen pins.
+# Other pins originate from reviewed frozen source
+# 4f0e3f0f2debe91d02a89aaac5af8f00f6381402.
 # GitHub's exact Git blob SHA is read via an authenticated Contents API lookup.
 # If an integrated candidate changes any workflow, this check MUST FAIL until
 # the new workflow/policy is independently reviewed and these pins are updated
 # on the separately protected controller. Do not auto-learn values from a PR.
 TRUSTED_WORKFLOW_BLOBS = {
-    "ci": "0725a12dd0bf3aec273a2f17c808ffb6bad6e87e",
+    "ci": "c37404b8911efc3949e4e6f15dde1221a1d54c74",
     "container": "c4c5e7ab00de1f6d395e3220bc8356908097c954",
     "supply": "318d6d4b7cf7d5ae74d34f66d5687d9bcd69d612",
 }
