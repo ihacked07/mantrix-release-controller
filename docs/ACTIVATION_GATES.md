@@ -76,3 +76,21 @@ Build with isolated GitHub-hosted ephemeral environment; use deterministic sourc
 - Gate 3 remains independently authorized.
 
 **Security claim permitted today:** synthetic cryptographic verifier code can reject changed signed approvals; not "Mantrix release ready" or "fully trusted controller".
+
+## Ruleset stability throughout evidence capture (development-only)
+
+The collector now reads and verifies the protected controller's **entire
+effective `protect-main` ruleset twice**: before gathering the private
+candidate's GitHub evidence and immediately after. Both protected controller
+commit SHA and ruleset details must remain identical. This detects an
+administrator disabling the ruleset, weakening reviewer policy, changing bypass
+parameters, or changing the ruleset metadata **within the observed collection
+window**, even when `main` stays on the same commit. Synthetic tests cover
+post-first-read changes that previously went unnoticed.
+
+This is bounded time-of-check evidence, **not** a guarantee against an
+administrator changing the ruleset after the final read or an already-privileged
+actor evading the separation of duties. A later release-signing/publishing
+decision still requires a fresh trusted policy check, separate Owner approval,
+authenticated exact-SHA provenance and replay protection. The implementation
+remains unmerged, unprivileged and development-only.

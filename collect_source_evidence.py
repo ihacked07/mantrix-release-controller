@@ -387,10 +387,14 @@ def collect(api, controller_sha, candidate_ref, candidate_sha, run_ids,
     require(after.get("ref") == candidate_ref and
             after.get("object", {}).get("sha") == candidate_sha,
             "source branch changed while collecting evidence")
-    control_after = api.get(f"/repos/{CONTROLLER}/branches/main")
-    require(control_after.get("protected") is True and
-            control_after.get("commit", {}).get("sha") == controller_sha,
+    # Re-check the entire effective ruleset, not only the controller main SHA.
+    # An administrator may edit a ruleset without moving the protected branch.
+    # Detect any change observed across this bounded collection window.
+    protection_after = verify_protection(api, profile)
+    require(protection_after["branch"]["commit"]["sha"] == controller_sha,
             "controller moved during evidence collection")
+    require(protection_after == public,
+            "controller security ruleset drifted during evidence collection")
     return {
         "status": "READ_ONLY_OBSERVATIONS_NOT_RELEASE_AUTHORITY",
         "security_state": "DEVELOPMENT_ONLY_NOT_ACTIVATED",

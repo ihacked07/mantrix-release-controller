@@ -21,6 +21,7 @@ class FakeApi:
         self.error = ""
         self.ref_reads = 0
         self.main_reads = 0
+        self.ruleset_reads = 0
 
     def get(self, path):
         if path == "/repos/" + c.SOURCE:
@@ -38,11 +39,18 @@ class FakeApi:
             return [{"id": 25425290, "name": "protect-main", "target": "branch",
                      "enforcement": "active", "source_type": "Repository"}]
         if path == "/repos/" + c.CONTROLLER + "/rulesets/25425290":
+            self.ruleset_reads += 1
+            changed_after = self.ruleset_reads >= 2
             return {
                 "id": 25425290, "name": "protect-main",
+                "updated_at": ("2026-10-20T03:00:00Z" if
+                               self.error == "ruleset_metadata_drift" and changed_after
+                               else "2026-10-20T02:00:00Z"),
                 "source": c.CONTROLLER, "source_type": "Repository",
                 "target": "branch",
-                "enforcement": "disabled" if self.error == "ruleset_disabled"
+                "enforcement": "disabled" if (
+                    self.error == "ruleset_disabled" or
+                    (self.error == "ruleset_disabled_mid_collection" and changed_after))
                                else "active",
                 "bypass_actors": ([{"actor_id": 1, "actor_type": "RepositoryRole"}]
                                   if self.error == "ruleset_bypass" else []),
@@ -54,7 +62,9 @@ class FakeApi:
                     {"type": "deletion"}, {"type": "non_fast_forward"},
                     {"type": "pull_request", "parameters": {
                         "required_approving_review_count": (0 if
-                            self.error == "reviewer_missing" else 1),
+                            self.error == "reviewer_missing" or
+                            (self.error == "reviewer_downgraded_mid_collection" and changed_after)
+                            else 1),
                         "dismiss_stale_reviews_on_push": True,
                         "required_review_thread_resolution": True,
                         "allowed_merge_methods": ["squash"]}},
@@ -166,9 +176,22 @@ class ControllerEvidenceTests(unittest.TestCase):
                       "tampered_security_script", "reviewer_missing",
                       "ruleset_disabled", "ruleset_bypass",
                       "ruleset_wrong_target", "required_check_missing",
-                      "wrong_check_app", "missing_active_ruleset"):
+                      "wrong_check_app", "missing_active_ruleset",
+                      "ruleset_disabled_mid_collection",
+                      "reviewer_downgraded_mid_collection",
+                      "ruleset_metadata_drift"):
             with self.subTest(error=error), self.assertRaises(c.Refused):
                 self.capture(error)
+
+    def test_detects_admin_ruleset_mutation_without_main_sha_move(self):
+        for scenario in ("ruleset_disabled_mid_collection",
+                         "reviewer_downgraded_mid_collection",
+                         "ruleset_metadata_drift"):
+            with self.subTest(scenario=scenario), self.assertRaises(c.Refused):
+                self.capture(scenario)
+        value = self.capture()
+        self.assertEqual(value["github_api_protection_snapshot"]["ruleset"]["updated_at"],
+                         "2026-10-20T02:00:00Z")
 
     def test_rejects_non_candidate_refs_and_unpinned_sha(self):
         for ref in ("refs/heads/main", "refs/heads/release/candidate/../oops",
