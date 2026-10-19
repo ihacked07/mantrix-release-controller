@@ -95,3 +95,22 @@ application test bodies, downloaded scanner versions and other transitive
 dependencies are **not** covered. The collector retains the explicit field
 `workflow_dependency_policy_verified=false`. No real key or release authority
 is enrolled through this improvement.
+
+## Controller Ruleset verification via least-privilege GitHub API
+
+The development-only collector now reads `/branches/main`, the public
+Repository Rulesets inventory and the exact `protect-main` Ruleset detail;
+it no longer depends on the GitHub branch-protection endpoint requiring
+Administration read permissions. The verifier requires:
+
+- An **active** Ruleset matching the default `main` branch, no bypass actors,
+  deletion/force-push restrictions, strict GitHub Actions check
+  `offline-owner-approval`, and squash-only PR history.
+- At least **one independently approving human reviewer**, stale-review
+  invalidation and conversation resolution.
+
+**As of the current GitHub readback, approvals are still zero. This check
+deliberately FAILS**, and does not claim activation. Ruleset administrators
+retain configuration-changing power; continuous readback, Owner offline
+authorization, workflow provenance and durable replay protection are separate
+release prerequisites. Unit tests use synthetic GitHub API responses only.

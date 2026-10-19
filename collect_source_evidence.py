@@ -175,27 +175,77 @@ class GitHub:
 
 
 def verify_protection(api):
+    """Verify GitHub's effective protected branch and reviewed branch ruleset.
+
+    The repository ruleset APIs are readable with least-privilege repository
+    metadata access. The branch protection endpoint requires Administration
+    read and cannot be assumed accessible to a minimum-scope GitHub App.
+
+    GitHub repository admins can still edit/disable rulesets: re-check on
+    every operation and require independent offline Owner authorization.
+    """
     branch = api.get(f"/repos/{CONTROLLER}/branches/main")
     require(isinstance(branch, dict) and branch.get("name") == "main" and
             branch.get("protected") is True, "public controller main not protected")
-    protection = api.get(f"/repos/{CONTROLLER}/branches/main/protection")
-    require(isinstance(protection, dict), "unreadable controller branch protection")
-    reviews = protection.get("required_pull_request_reviews")
-    checks = protection.get("required_status_checks")
-    admins = protection.get("enforce_admins")
-    require(isinstance(reviews, dict) and type(reviews.get("required_approving_review_count")) is int
-            and reviews["required_approving_review_count"] >= 1,
-            "controller review requirement missing")
-    require(isinstance(checks, dict) and checks.get("strict") is True and
-            bool(checks.get("checks") or checks.get("contexts")),
-            "controller required status checks missing")
-    require(isinstance(admins, dict) and admins.get("enabled") is True,
-            "controller admin bypass not constrained")
-    require(protection.get("allow_force_pushes", {}).get("enabled") is False and
-            protection.get("allow_deletions", {}).get("enabled") is False,
-            "controller force-push or deletion is allowed")
-    return {"branch": branch, "protection": protection}
-
+    listing = api.get(f"/repos/{CONTROLLER}/rulesets")
+    require(isinstance(listing, list), "cannot read controller ruleset inventory")
+    candidates = [item for item in listing if
+                  isinstance(item, dict) and item.get("name") == "protect-main" and
+                  item.get("target") == "branch" and
+                  item.get("enforcement") == "active" and
+                  item.get("source_type") == "Repository"]
+    require(len(candidates) == 1 and type(candidates[0].get("id")) is int and
+            candidates[0]["id"] > 0, "missing unique active controller ruleset")
+    rule_id = candidates[0]["id"]
+    ruleset = api.get(f"/repos/{CONTROLLER}/rulesets/{rule_id}")
+    require(isinstance(ruleset, dict) and ruleset.get("id") == rule_id and
+            ruleset.get("name") == "protect-main" and
+            ruleset.get("source") == CONTROLLER and
+            ruleset.get("source_type") == "Repository" and
+            ruleset.get("target") == "branch" and
+            ruleset.get("enforcement") == "active" and
+            ruleset.get("bypass_actors") == [],
+            "active controller ruleset does not match Owner trust policy")
+    conditions = ruleset.get("conditions")
+    ref_match = conditions.get("ref_name") if isinstance(conditions, dict) else None
+    require(isinstance(ref_match, dict) and
+            ref_match.get("include") == ["~DEFAULT_BRANCH"] and
+            ref_match.get("exclude") == [],
+            "controller ruleset does not exclusively cover default branch")
+    rules = ruleset.get("rules")
+    require(isinstance(rules, list) and all(isinstance(x, dict) for x in rules),
+            "controller rules absent")
+    by_type = {}
+    for row in rules:
+        name = row.get("type")
+        require(isinstance(name, str) and name not in by_type,
+                "duplicate/invalid controller rule")
+        by_type[name] = row
+    require("deletion" in by_type and "non_fast_forward" in by_type,
+            "controller deletion/force-push protection missing")
+    require("pull_request" in by_type and
+            isinstance(by_type["pull_request"].get("parameters"), dict),
+            "controller PR approval policy missing")
+    reviews = by_type["pull_request"]["parameters"]
+    require(type(reviews.get("required_approving_review_count")) is int and
+            reviews["required_approving_review_count"] >= 1 and
+            reviews.get("dismiss_stale_reviews_on_push") is True and
+            reviews.get("required_review_thread_resolution") is True and
+            reviews.get("allowed_merge_methods") == ["squash"],
+            "independent human reviewer gate not enforced")
+    require("required_status_checks" in by_type and
+            isinstance(by_type["required_status_checks"].get("parameters"), dict),
+            "controller required checks absent")
+    checks = by_type["required_status_checks"]["parameters"]
+    require(checks.get("strict_required_status_checks_policy") is True and
+            checks.get("do_not_enforce_on_create") is False,
+            "controller required status checks are not strict")
+    statuses = checks.get("required_status_checks")
+    require(isinstance(statuses, list) and any(
+            isinstance(c, dict) and c.get("context") == "offline-owner-approval" and
+            c.get("integration_id") == 15368 for c in statuses),
+            "controller GitHub Actions policy test is not required")
+    return {"branch": branch, "ruleset": ruleset}
 
 
 def check_source_workflow_pins(api, candidate_sha):

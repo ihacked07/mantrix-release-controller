@@ -32,13 +32,41 @@ class FakeApi:
             return {"name": "main", "protected": self.error != "unprotected",
                     "commit": {"sha": CONTROL_SHA if self.error != "controller_drift" or
                                self.main_reads == 1 else SOURCE_SHA}}
-        if path.endswith("/branches/main/protection"):
+        if path == "/repos/" + c.CONTROLLER + "/rulesets":
+            if self.error == "missing_active_ruleset":
+                return []
+            return [{"id": 25425290, "name": "protect-main", "target": "branch",
+                     "enforcement": "active", "source_type": "Repository"}]
+        if path == "/repos/" + c.CONTROLLER + "/rulesets/25425290":
             return {
-                "required_pull_request_reviews": {"required_approving_review_count": 1},
-                "required_status_checks": {"strict": True, "checks": [{"context": "Policy Tests"}]},
-                "enforce_admins": {"enabled": True},
-                "allow_force_pushes": {"enabled": False},
-                "allow_deletions": {"enabled": False},
+                "id": 25425290, "name": "protect-main",
+                "source": c.CONTROLLER, "source_type": "Repository",
+                "target": "branch",
+                "enforcement": "disabled" if self.error == "ruleset_disabled"
+                               else "active",
+                "bypass_actors": ([{"actor_id": 1, "actor_type": "RepositoryRole"}]
+                                  if self.error == "ruleset_bypass" else []),
+                "conditions": {"ref_name": {
+                    "include": ["refs/heads/other"] if
+                    self.error == "ruleset_wrong_target" else ["~DEFAULT_BRANCH"],
+                    "exclude": []}},
+                "rules": [
+                    {"type": "deletion"}, {"type": "non_fast_forward"},
+                    {"type": "pull_request", "parameters": {
+                        "required_approving_review_count": (0 if
+                            self.error == "reviewer_missing" else 1),
+                        "dismiss_stale_reviews_on_push": True,
+                        "required_review_thread_resolution": True,
+                        "allowed_merge_methods": ["squash"]}},
+                    {"type": "required_status_checks", "parameters": {
+                        "strict_required_status_checks_policy": True,
+                        "do_not_enforce_on_create": False,
+                        "required_status_checks": [] if self.error ==
+                        "required_check_missing" else [{
+                            "context": "offline-owner-approval",
+                            "integration_id": 0 if self.error ==
+                            "wrong_check_app" else 15368}]}}
+                ],
             }
         if "/contents/scripts/" in path:
             record_path, _, candidate_sha = path.rpartition("?ref=")
@@ -134,7 +162,10 @@ class ControllerEvidenceTests(unittest.TestCase):
                       "failed_required", "unexpected_native_success",
                       "untrusted_runner", "job_sha_drift", "job_run_mismatch",
                       "job_attempt_mismatch", "tampered_workflow",
-                      "tampered_security_script"):
+                      "tampered_security_script", "reviewer_missing",
+                      "ruleset_disabled", "ruleset_bypass",
+                      "ruleset_wrong_target", "required_check_missing",
+                      "wrong_check_app", "missing_active_ruleset"):
             with self.subTest(error=error), self.assertRaises(c.Refused):
                 self.capture(error)
 
@@ -171,6 +202,14 @@ class ControllerEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(c.Refused, "policy script changed"):
             self.capture("tampered_security_script")
         self.assertEqual(len(c.TRUSTED_SECURITY_SCRIPT_BLOBS), 10)
+
+    def test_fail_closed_until_independent_reviewer_exists(self):
+        for scenario in ("reviewer_missing", "ruleset_disabled",
+                         "ruleset_bypass", "ruleset_wrong_target",
+                         "missing_active_ruleset", "required_check_missing",
+                         "wrong_check_app"):
+            with self.subTest(scenario=scenario), self.assertRaises(c.Refused):
+                self.capture(scenario)
 
     def test_required_job_counts_match_pinned_workflows(self):
         self.assertEqual(len(c.REQUIRED_JOBS["ci"]), 8)
