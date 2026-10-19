@@ -1,0 +1,17 @@
+name: Controller Policy Tests
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-owner-approval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - name: Offline Ed25519 approval contract
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
