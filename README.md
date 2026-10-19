@@ -67,3 +67,18 @@ A slower, traceable release is preferable to an unproven shortcut. That is the s
 - This README documents *current development intent and known limits*, not a security certification. Reverify GitHub rules, source SHA, tests and effective permissions before granting any future authority.
 
 See [Activation Gates](docs/ACTIVATION_GATES.md) for the release-stage threat boundaries and required owner decisions.
+
+## Exact canonical workflow-file identities (development only)
+
+The collector now fails closed when a candidate changes any of the three
+canonical workflow YAML files without separate controller-policy review.
+Pins are exact Git blob identities read from the frozen Mantrix SHA
+`4f0e3f0f2debe91d02a89aaac5af8f00f6381402`, verified using an
+authenticated contents lookup at the proposed candidate SHA. **This is
+not sufficient to verify all executed security logic:** sourced scripts,
+Dockerfiles, reusable workflows, dependencies and runner identity must also be
+reviewed and independently bound before trusted release activation. The
+collector reports `workflow_dependency_policy_verified: false` explicitly.
+Future integrated commits that change a pinned YAML file must be blocked until
+the changed policy is reviewed and pins are intentionally updated in protected
+controller history. These pins are not learned automatically from candidates.

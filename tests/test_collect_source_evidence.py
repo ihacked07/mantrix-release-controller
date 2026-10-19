@@ -40,6 +40,16 @@ class FakeApi:
                 "allow_force_pushes": {"enabled": False},
                 "allow_deletions": {"enabled": False},
             }
+        if "/contents/.github/workflows/" in path:
+            import_path, _, candidate_sha = path.rpartition("?ref=")
+            label = next((k for k, v in c.WORKFLOWS.items()
+                          if import_path.endswith("/contents/" + v)), None)
+            if label is None or candidate_sha != SOURCE_SHA:
+                raise AssertionError("Unexpected workflow contents API request")
+            return {"type": "file", "path": c.WORKFLOWS[label],
+                    "sha": ("c" * 40 if self.error == "tampered_workflow" and
+                            label == "ci" else c.TRUSTED_WORKFLOW_BLOBS[label]),
+                    "size": 7891}
         if "/git/ref/heads/release/candidate/" in path:
             self.ref_reads += 1
             return {"ref": REF, "object": {"sha": "c" * 40 if self.error == "drift" and
@@ -98,6 +108,8 @@ class ControllerEvidenceTests(unittest.TestCase):
         self.assertFalse(value["release_authorized"])
         self.assertFalse(value["owner_signature_verified"])
         self.assertFalse(value["cosign_verified"])
+        self.assertFalse(value["workflow_dependency_policy_verified"])
+        self.assertEqual(len(value["reviewed_workflow_blob_pins"]), 3)
 
     def test_rejects_wrong_runner_or_run_metadata(self):
         for error in ("unprotected", "controller_drift", "drift",
@@ -105,7 +117,7 @@ class ControllerEvidenceTests(unittest.TestCase):
                       "missing_job", "duplicate_name", "skipped_required",
                       "failed_required", "unexpected_native_success",
                       "untrusted_runner", "job_sha_drift", "job_run_mismatch",
-                      "job_attempt_mismatch"):
+                      "job_attempt_mismatch", "tampered_workflow"):
             with self.subTest(error=error), self.assertRaises(c.Refused):
                 self.capture(error)
 
@@ -130,6 +142,13 @@ class ControllerEvidenceTests(unittest.TestCase):
         self.assertEqual(len(native), 1)
         self.assertEqual(native[0]["conclusion"], "skipped")
         self.assertEqual(len(supply), 10)
+
+    def test_workflow_blob_pins_require_independent_review(self):
+        self.assertEqual(c.TRUSTED_WORKFLOW_BLOBS["ci"],
+                         "0725a12dd0bf3aec273a2f17c808ffb6bad6e87e")
+        self.assertEqual(len(c.TRUSTED_WORKFLOW_BLOBS), 3)
+        with self.assertRaisesRegex(c.Refused, "reviewed trust pin"):
+            self.capture("tampered_workflow")
 
     def test_required_job_counts_match_pinned_workflows(self):
         self.assertEqual(len(c.REQUIRED_JOBS["ci"]), 8)

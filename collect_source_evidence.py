@@ -28,6 +28,18 @@ WORKFLOWS = {
 }
 
 
+# Bootstrap trusted-file identities taken from the independently reviewed frozen
+# Mantrix source SHA 4f0e3f0f2debe91d02a89aaac5af8f00f6381402.
+# GitHub's exact Git blob SHA is read via an authenticated Contents API lookup.
+# If an integrated candidate changes any workflow, this check MUST FAIL until
+# the new workflow/policy is independently reviewed and these pins are updated
+# on the separately protected controller. Do not auto-learn values from a PR.
+TRUSTED_WORKFLOW_BLOBS = {
+    "ci": "0725a12dd0bf3aec273a2f17c808ffb6bad6e87e",
+    "container": "c4c5e7ab00de1f6d395e3220bc8356908097c954",
+    "supply": "318d6d4b7cf7d5ae74d34f66d5687d9bcd69d612",
+}
+
 # Pinned to the reviewed workflow job matrix; unexpected/missing jobs fail closed.
 # Update only together with an independently reviewed canonical workflow change.
 REQUIRED_JOBS = {
@@ -166,6 +178,26 @@ def verify_protection(api):
     return {"branch": branch, "protection": protection}
 
 
+
+def check_source_workflow_pins(api, candidate_sha):
+    """Reject candidate-supplied workflow changes not reviewed by controller.
+
+    This verifies *workflow YAML file identity only*. Scripts/config executed
+    by those YAML files remain separate dependencies that still require
+    independent source-policy attestation before operational activation.
+    """
+    evidence = {}
+    for label, path in WORKFLOWS.items():
+        record = api.get(f"/repos/{SOURCE}/contents/{path}?ref={candidate_sha}")
+        expected = TRUSTED_WORKFLOW_BLOBS[label]
+        require(isinstance(record, dict) and record.get("type") == "file" and
+                record.get("path") == path and record.get("sha") == expected and
+                type(record.get("size")) is int and record["size"] > 0,
+                "canonical workflow file differs from reviewed trust pin: " + label)
+        evidence[label] = {"path": path, "git_blob_sha": expected}
+    return evidence
+
+
 def run_evidence(api, label, run_id, candidate_sha, branch):
     require(type(run_id) is int and run_id > 0, "invalid run ID")
     run = api.get(f"/repos/{SOURCE}/actions/runs/{run_id}")
@@ -234,6 +266,7 @@ def collect(api, controller_sha, candidate_ref, candidate_sha, run_ids):
     require(commit.get("sha") == candidate_sha and
             isinstance(tree_sha, str) and SHA.fullmatch(tree_sha) is not None,
             "candidate commit and source tree not established")
+    workflow_pins = check_source_workflow_pins(api, candidate_sha)
     collected = {label: run_evidence(api, label, run_ids[label], candidate_sha, branch)
                  for label in WORKFLOWS}
     after = api.get(ref_path)
@@ -254,6 +287,8 @@ def collect(api, controller_sha, candidate_ref, candidate_sha, run_ids):
         "controller_sha": controller_sha,
         "github_api_protection_snapshot": public,
         "canonical_runs": collected,
+        "reviewed_workflow_blob_pins": workflow_pins,
+        "workflow_dependency_policy_verified": False,
         "owner_signature_verified": False,
         "cosign_verified": False,
         "release_authorized": False,
