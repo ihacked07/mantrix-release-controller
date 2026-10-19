@@ -40,6 +40,18 @@ class FakeApi:
                 "allow_force_pushes": {"enabled": False},
                 "allow_deletions": {"enabled": False},
             }
+        if "/contents/scripts/" in path:
+            record_path, _, candidate_sha = path.rpartition("?ref=")
+            script_path = record_path.split("/contents/", 1)[-1]
+            if (candidate_sha != SOURCE_SHA or
+                    script_path not in c.TRUSTED_SECURITY_SCRIPT_BLOBS):
+                raise AssertionError("Unexpected policy script lookup")
+            return {"type": "file", "path": script_path,
+                    "sha": "c" * 40 if (self.error == "tampered_security_script"
+                                       and script_path ==
+                                       "scripts/vulnerability_policy_gate.mjs")
+                           else c.TRUSTED_SECURITY_SCRIPT_BLOBS[script_path],
+                    "size": 1234}
         if "/contents/.github/workflows/" in path:
             import_path, _, candidate_sha = path.rpartition("?ref=")
             label = next((k for k, v in c.WORKFLOWS.items()
@@ -110,6 +122,10 @@ class ControllerEvidenceTests(unittest.TestCase):
         self.assertFalse(value["cosign_verified"])
         self.assertFalse(value["workflow_dependency_policy_verified"])
         self.assertEqual(len(value["reviewed_workflow_blob_pins"]), 3)
+        self.assertEqual(len(value["reviewed_security_script_blob_pins"]), 10)
+        self.assertEqual(value["reviewed_security_script_blob_pins"][
+            "scripts/dependency_scope.mjs"],
+            c.TRUSTED_SECURITY_SCRIPT_BLOBS["scripts/dependency_scope.mjs"])
 
     def test_rejects_wrong_runner_or_run_metadata(self):
         for error in ("unprotected", "controller_drift", "drift",
@@ -117,7 +133,8 @@ class ControllerEvidenceTests(unittest.TestCase):
                       "missing_job", "duplicate_name", "skipped_required",
                       "failed_required", "unexpected_native_success",
                       "untrusted_runner", "job_sha_drift", "job_run_mismatch",
-                      "job_attempt_mismatch", "tampered_workflow"):
+                      "job_attempt_mismatch", "tampered_workflow",
+                      "tampered_security_script"):
             with self.subTest(error=error), self.assertRaises(c.Refused):
                 self.capture(error)
 
@@ -149,6 +166,11 @@ class ControllerEvidenceTests(unittest.TestCase):
         self.assertEqual(len(c.TRUSTED_WORKFLOW_BLOBS), 3)
         with self.assertRaisesRegex(c.Refused, "reviewed trust pin"):
             self.capture("tampered_workflow")
+
+    def test_rejects_changed_security_policy_script(self):
+        with self.assertRaisesRegex(c.Refused, "policy script changed"):
+            self.capture("tampered_security_script")
+        self.assertEqual(len(c.TRUSTED_SECURITY_SCRIPT_BLOBS), 10)
 
     def test_required_job_counts_match_pinned_workflows(self):
         self.assertEqual(len(c.REQUIRED_JOBS["ci"]), 8)

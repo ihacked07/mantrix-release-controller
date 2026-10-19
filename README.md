@@ -82,3 +82,16 @@ collector reports `workflow_dependency_policy_verified: false` explicitly.
 Future integrated commits that change a pinned YAML file must be blocked until
 the changed policy is reviewed and pins are intentionally updated in protected
 controller history. These pins are not learned automatically from candidates.
+
+## Reviewed executable security-policy script pins (development only)
+
+In addition to canonical workflow YAML identities, the evidence collector now
+requires exact Git blob matches for ten reviewed security-policy scripts from
+frozen private source SHA `4f0e3f0f2debe91d02a89aaac5af8f00f6381402`.
+A changed script **blocks** unless a protected-controller policy change
+independently reviews and updates its pinned blob identity. This does not make
+the entire workflow secure by itself: lockfiles, Docker build contexts,
+application test bodies, downloaded scanner versions and other transitive
+dependencies are **not** covered. The collector retains the explicit field
+`workflow_dependency_policy_verified=false`. No real key or release authority
+is enrolled through this improvement.

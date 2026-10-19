@@ -40,6 +40,25 @@ TRUSTED_WORKFLOW_BLOBS = {
     "supply": "318d6d4b7cf7d5ae74d34f66d5687d9bcd69d612",
 }
 
+# Reviewed security-policy scripts executed by canonical workflows.
+# Pins originate from frozen Mantrix commit
+# 4f0e3f0f2debe91d02a89aaac5af8f00f6381402.
+# This is a narrow executable-policy pin set, NOT a dependency closure:
+# package lockfiles, Docker build contexts, Go/JS application tests, security
+# scanner binaries, and invoked programs require separate independent review.
+TRUSTED_SECURITY_SCRIPT_BLOBS = {
+    "scripts/dependency_scope.mjs": "0dd293584e32cd11c31297c5fc78ce4273364173",
+    "scripts/vulnerability_policy_gate.mjs": "896ee165788fc964954b479b9fcce2c259337dcd",
+    "scripts/vulnerability_policy_gate.test.mjs": "5607979b9a67f0115b3d7e85b639322ab9d153c1",
+    "scripts/run_vulnerability_policy_gate.sh": "514ead10aafb332db80d2d4eb3fce8c8e62ecdda",
+    "scripts/generate_source_sbom.mjs": "e18fb05f1de1210741b0164892442feaaa459d0d",
+    "scripts/supply_chain_policy.sh": "0622705edc00fb1584e5ea5a69878800c54ed4c2",
+    "scripts/caddy_vulnerability_policy_gate.mjs": "bd64b0ece1e7268ee7be830f7244710df8248ce8",
+    "scripts/caddy_vulnerability_policy_gate.test.mjs": "fc93693dbc51bcd9f47d564c3444185ba378bcd6",
+    "scripts/run_caddy_vulnerability_policy_gate.sh": "e7cf3ccca0e92e669e35a076b324e533d73fd1f4",
+    "scripts/generate_caddy_openpgp_evidence.sh": "8841a1f4e62bf1ba0efd911d654a5925248f7e34",
+}
+
 # Pinned to the reviewed workflow job matrix; unexpected/missing jobs fail closed.
 # Update only together with an independently reviewed canonical workflow change.
 REQUIRED_JOBS = {
@@ -198,6 +217,25 @@ def check_source_workflow_pins(api, candidate_sha):
     return evidence
 
 
+
+def check_security_script_pins(api, candidate_sha):
+    """Refuse candidate changes to reviewed security-policy scripts.
+
+    These identities are independent of the proposed candidate commit SHA,
+    and only change through a separately reviewed protected-controller update.
+    Call-site/runtime dependency closure is NOT proven by these source pins.
+    """
+    verified = {}
+    for path, expected_sha in TRUSTED_SECURITY_SCRIPT_BLOBS.items():
+        record = api.get(f"/repos/{SOURCE}/contents/{path}?ref={candidate_sha}")
+        require(isinstance(record, dict) and record.get("type") == "file" and
+                record.get("path") == path and record.get("sha") == expected_sha and
+                type(record.get("size")) is int and record["size"] > 0,
+                "reviewed security policy script changed: " + path)
+        verified[path] = expected_sha
+    return verified
+
+
 def run_evidence(api, label, run_id, candidate_sha, branch):
     require(type(run_id) is int and run_id > 0, "invalid run ID")
     run = api.get(f"/repos/{SOURCE}/actions/runs/{run_id}")
@@ -267,6 +305,7 @@ def collect(api, controller_sha, candidate_ref, candidate_sha, run_ids):
             isinstance(tree_sha, str) and SHA.fullmatch(tree_sha) is not None,
             "candidate commit and source tree not established")
     workflow_pins = check_source_workflow_pins(api, candidate_sha)
+    security_script_pins = check_security_script_pins(api, candidate_sha)
     collected = {label: run_evidence(api, label, run_ids[label], candidate_sha, branch)
                  for label in WORKFLOWS}
     after = api.get(ref_path)
@@ -288,6 +327,7 @@ def collect(api, controller_sha, candidate_ref, candidate_sha, run_ids):
         "github_api_protection_snapshot": public,
         "canonical_runs": collected,
         "reviewed_workflow_blob_pins": workflow_pins,
+        "reviewed_security_script_blob_pins": security_script_pins,
         "workflow_dependency_policy_verified": False,
         "owner_signature_verified": False,
         "cosign_verified": False,
