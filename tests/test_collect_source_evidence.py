@@ -136,10 +136,10 @@ class FakeApi:
 
 
 class ControllerEvidenceTests(unittest.TestCase):
-    def capture(self, error=""):
+    def capture(self, error="", profile=c.INDEPENDENT_REVIEW_RELEASE):
         api = FakeApi()
         api.error = error
-        return c.collect(api, CONTROL_SHA, REF, SOURCE_SHA, RUNS)
+        return c.collect(api, CONTROL_SHA, REF, SOURCE_SHA, RUNS, profile)
 
     def test_synthetic_capture_does_not_authorize_release(self):
         value = self.capture()
@@ -149,6 +149,7 @@ class ControllerEvidenceTests(unittest.TestCase):
         self.assertFalse(value["owner_signature_verified"])
         self.assertFalse(value["cosign_verified"])
         self.assertFalse(value["workflow_dependency_policy_verified"])
+        self.assertEqual(value["trust_profile"], c.INDEPENDENT_REVIEW_RELEASE)
         self.assertEqual(len(value["reviewed_workflow_blob_pins"]), 3)
         self.assertEqual(len(value["reviewed_security_script_blob_pins"]), 10)
         self.assertEqual(value["reviewed_security_script_blob_pins"][
@@ -203,13 +204,28 @@ class ControllerEvidenceTests(unittest.TestCase):
             self.capture("tampered_security_script")
         self.assertEqual(len(c.TRUSTED_SECURITY_SCRIPT_BLOBS), 10)
 
-    def test_fail_closed_until_independent_reviewer_exists(self):
+    def test_independent_review_profile_fails_closed_without_reviewer(self):
         for scenario in ("reviewer_missing", "ruleset_disabled",
                          "ruleset_bypass", "ruleset_wrong_target",
                          "missing_active_ruleset", "required_check_missing",
                          "wrong_check_app"):
             with self.subTest(scenario=scenario), self.assertRaises(c.Refused):
                 self.capture(scenario)
+
+    def test_solo_owner_profile_accepts_zero_reviewers_but_not_weaker_rules(self):
+        value = self.capture("reviewer_missing", c.SOLO_OWNER_OPEN_BETA)
+        snapshot = value["github_api_protection_snapshot"]
+        self.assertEqual(value["trust_profile"], c.SOLO_OWNER_OPEN_BETA)
+        self.assertFalse(snapshot["independent_review_required"])
+        self.assertEqual(snapshot["observed_reviewers"], 0)
+        for scenario in ("ruleset_disabled", "ruleset_bypass", "ruleset_wrong_target",
+                         "missing_active_ruleset", "required_check_missing", "wrong_check_app"):
+            with self.subTest(scenario=scenario), self.assertRaises(c.Refused):
+                self.capture(scenario, c.SOLO_OWNER_OPEN_BETA)
+
+    def test_unknown_profile_refused(self):
+        with self.assertRaises(c.Refused):
+            self.capture(profile="RELEASE_EVERYTHING")
 
     def test_required_job_counts_match_pinned_workflows(self):
         self.assertEqual(len(c.REQUIRED_JOBS["ci"]), 8)

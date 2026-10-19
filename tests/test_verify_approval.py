@@ -17,6 +17,7 @@ SPEC.loader.exec_module(policy)
 CONTROL = "b" * 40
 CANDIDATE = "a" * 40
 REF = "refs/heads/release/candidate/mantrix-20261019"
+PROFILE = policy.SOLO_OWNER_OPEN_BETA
 NOW = dt.datetime(2026, 10, 19, 12, 0, 0, tzinfo=dt.timezone.utc)
 
 
@@ -25,7 +26,7 @@ def fixture():
         "version": 1, "repository": "ihacked07/mantrix",
         "controller_repository": "ihacked07/mantrix-release-controller",
         "controller_ref": "refs/heads/main", "controller_sha": CONTROL,
-        "candidate_ref": REF, "candidate_sha": CANDIDATE,
+        "candidate_ref": REF, "candidate_sha": CANDIDATE, "trust_profile": PROFILE,
         "purpose": "authorize_isolated_release_build",
         "signer": "owner:ihacked07", "approval_id": "fixture-approval-0001",
         "issued_at": "2026-10-19T11:00:00Z", "expires_at": "2026-10-19T13:00:00Z",
@@ -70,6 +71,7 @@ class OwnerApprovalContract(unittest.TestCase):
             overrides.get("controller_sha", CONTROL),
             overrides.get("candidate_sha", CANDIDATE),
             overrides.get("candidate_ref", REF),
+            overrides.get("trust_profile", PROFILE),
             overrides.get("now", NOW),
         )
 
@@ -83,7 +85,7 @@ class OwnerApprovalContract(unittest.TestCase):
             policy.main(["--approval", "/nonexistent", "--owner-public-key",
                          str(self.pub), "--controller-sha", CONTROL,
                          "--candidate-sha", CANDIDATE, "--candidate-ref", REF,
-                         "--now", "2026-10-19T12:00:00Z"])
+                         "--trust-profile", PROFILE, "--now", "2026-10-19T12:00:00Z"])
         self.assertEqual(caught.exception.code, 2)
 
     def test_valid_ed25519_fixture(self):
@@ -139,6 +141,9 @@ class OwnerApprovalContract(unittest.TestCase):
         payload = fixture()
         payload["purpose"] = "deploy_prod"
         self.denied(self.signed(payload))
+
+    def test_trust_profile_is_signature_bound(self):
+        self.denied(self.signed(), trust_profile=policy.INDEPENDENT_REVIEW_RELEASE)
 
     def test_missing_required_field(self):
         payload = fixture()

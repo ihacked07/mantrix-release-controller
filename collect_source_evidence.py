@@ -27,6 +27,16 @@ WORKFLOWS = {
     "supply": ".github/workflows/supply-chain.yml",
 }
 
+# A profile is evidence policy, not a release switch.  The controller always
+# emits RELEASE_AUTHORIZED=NO; a separately protected future workflow must
+# bind every remaining prerequisite before it can perform a privileged action.
+SOLO_OWNER_OPEN_BETA = "SOLO_OWNER_OPEN_BETA"
+INDEPENDENT_REVIEW_RELEASE = "INDEPENDENT_REVIEW_RELEASE"
+TRUST_PROFILES = {
+    SOLO_OWNER_OPEN_BETA: {"minimum_reviewers": 0},
+    INDEPENDENT_REVIEW_RELEASE: {"minimum_reviewers": 1},
+}
+
 
 # Bootstrap trusted-file identities taken from the independently reviewed frozen
 # Mantrix source SHA 4f0e3f0f2debe91d02a89aaac5af8f00f6381402.
@@ -174,7 +184,12 @@ class GitHub:
         raise Refused("incomplete GitHub job pagination")
 
 
-def verify_protection(api):
+def verify_profile(profile):
+    require(profile in TRUST_PROFILES, "unknown trust profile")
+    return TRUST_PROFILES[profile]
+
+
+def verify_protection(api, profile):
     """Verify GitHub's effective protected branch and reviewed branch ruleset.
 
     The repository ruleset APIs are readable with least-privilege repository
@@ -227,12 +242,13 @@ def verify_protection(api):
             isinstance(by_type["pull_request"].get("parameters"), dict),
             "controller PR approval policy missing")
     reviews = by_type["pull_request"]["parameters"]
-    require(type(reviews.get("required_approving_review_count")) is int and
-            reviews["required_approving_review_count"] >= 1 and
+    required_reviews = reviews.get("required_approving_review_count")
+    policy = verify_profile(profile)
+    require(type(required_reviews) is int and required_reviews >= policy["minimum_reviewers"] and
             reviews.get("dismiss_stale_reviews_on_push") is True and
             reviews.get("required_review_thread_resolution") is True and
             reviews.get("allowed_merge_methods") == ["squash"],
-            "independent human reviewer gate not enforced")
+            "trust-profile reviewer gate not enforced")
     require("required_status_checks" in by_type and
             isinstance(by_type["required_status_checks"].get("parameters"), dict),
             "controller required checks absent")
@@ -245,7 +261,14 @@ def verify_protection(api):
             isinstance(c, dict) and c.get("context") == "offline-owner-approval" and
             c.get("integration_id") == 15368 for c in statuses),
             "controller GitHub Actions policy test is not required")
-    return {"branch": branch, "ruleset": ruleset}
+    return {
+        "branch": branch,
+        "ruleset": ruleset,
+        "trust_profile": profile,
+        "minimum_reviewers": policy["minimum_reviewers"],
+        "observed_reviewers": required_reviews,
+        "independent_review_required": policy["minimum_reviewers"] > 0,
+    }
 
 
 def check_source_workflow_pins(api, candidate_sha):
@@ -324,7 +347,8 @@ def run_evidence(api, label, run_id, candidate_sha, branch):
     return {"run": run, "jobs": jobs}
 
 
-def collect(api, controller_sha, candidate_ref, candidate_sha, run_ids):
+def collect(api, controller_sha, candidate_ref, candidate_sha, run_ids,
+            profile=INDEPENDENT_REVIEW_RELEASE):
     require(isinstance(controller_sha, str) and SHA.fullmatch(controller_sha) is not None,
             "controller SHA not pinned")
     require(isinstance(candidate_sha, str) and SHA.fullmatch(candidate_sha) is not None,
@@ -340,7 +364,8 @@ def collect(api, controller_sha, candidate_ref, candidate_sha, run_ids):
     private_meta = api.get(f"/repos/{SOURCE}")
     require(private_meta.get("full_name") == SOURCE and private_meta.get("private") is True,
             "private source repository identity incorrect")
-    public = verify_protection(api)
+    verify_profile(profile)
+    public = verify_protection(api, profile)
     require(public["branch"]["commit"]["sha"] == controller_sha,
             "controller branch drifted from pinned SHA")
     branch = candidate_ref.removeprefix("refs/heads/")
@@ -368,12 +393,14 @@ def collect(api, controller_sha, candidate_ref, candidate_sha, run_ids):
             "controller moved during evidence collection")
     return {
         "status": "READ_ONLY_OBSERVATIONS_NOT_RELEASE_AUTHORITY",
+        "security_state": "DEVELOPMENT_ONLY_NOT_ACTIVATED",
         "source_repository": SOURCE,
         "controller_repository": CONTROLLER,
         "candidate_sha": candidate_sha,
         "candidate_ref": candidate_ref,
         "source_tree_sha": tree_sha,
         "controller_sha": controller_sha,
+        "trust_profile": profile,
         "github_api_protection_snapshot": public,
         "canonical_runs": collected,
         "reviewed_workflow_blob_pins": workflow_pins,
@@ -413,6 +440,8 @@ def main(argv=None):
     parser.add_argument("--controller-sha", required=True)
     parser.add_argument("--candidate-ref", required=True)
     parser.add_argument("--candidate-sha", required=True)
+    parser.add_argument("--trust-profile", choices=sorted(TRUST_PROFILES),
+                        default=INDEPENDENT_REVIEW_RELEASE)
     for label in WORKFLOWS:
         parser.add_argument("--" + label + "-run-id", type=int, required=True)
     parser.add_argument("--output", required=True)
@@ -421,7 +450,8 @@ def main(argv=None):
     require(token, "authorized read-only GitHub App token not configured")
     runs = {label: getattr(args, label + "_run_id") for label in WORKFLOWS}
     observation = collect(GitHub(token, urllib.request.build_opener(NoRedirect())),
-                          args.controller_sha, args.candidate_ref, args.candidate_sha, runs)
+                          args.controller_sha, args.candidate_ref, args.candidate_sha, runs,
+                          args.trust_profile)
     save_no_clobber(observation, args.output)
     print("GITHUB_EVIDENCE_CAPTURE=PASS")
     print("RELEASE_AUTHORIZED=NO")

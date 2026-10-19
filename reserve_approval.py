@@ -15,7 +15,7 @@ import sqlite3
 import stat
 import sys
 
-from verify_approval import Denied, unique_pairs, verify
+from verify_approval import Denied, TRUST_PROFILES, unique_pairs, verify
 
 
 SCHEMA = """
@@ -103,10 +103,11 @@ def reserve_once(path, payload):
 
 
 def verify_and_reserve(envelope, owner_public_key, controller_sha,
-                       candidate_sha, candidate_ref, ledger_path):
+                       candidate_sha, candidate_ref, trust_profile, ledger_path):
     # Clock can only be sourced from the trusted host, not request-supplied.
     now = dt.datetime.now(dt.timezone.utc)
-    verify(envelope, owner_public_key, controller_sha, candidate_sha, candidate_ref, now)
+    verify(envelope, owner_public_key, controller_sha, candidate_sha, candidate_ref,
+           trust_profile, now)
     reserve_once(ledger_path, envelope["payload"])
     return True
 
@@ -118,6 +119,7 @@ def main(argv=None):
     parser.add_argument("--controller-sha", required=True)
     parser.add_argument("--candidate-sha", required=True)
     parser.add_argument("--candidate-ref", required=True)
+    parser.add_argument("--trust-profile", choices=sorted(TRUST_PROFILES), required=True)
     parser.add_argument("--ledger", required=True)
     args = parser.parse_args(argv)
     try:
@@ -127,7 +129,8 @@ def main(argv=None):
         envelope = json.loads(approval.read_text(encoding="utf-8"),
                               object_pairs_hook=unique_pairs)
         verify_and_reserve(envelope, args.owner_public_key, args.controller_sha,
-                           args.candidate_sha, args.candidate_ref, args.ledger)
+                           args.candidate_sha, args.candidate_ref, args.trust_profile,
+                           args.ledger)
     except (Denied, OSError, ValueError, sqlite3.Error) as exc:
         print("APPROVAL_RESERVATION=DENIED: " + str(exc), file=sys.stderr)
         return 1

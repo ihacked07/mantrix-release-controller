@@ -23,9 +23,12 @@ CANDIDATE_REF = re.compile(r"^refs/heads/release/candidate/[a-z0-9][a-z0-9._-]{0
 SHA = re.compile(r"^[0-9a-f]{40}$")
 FIELDS = {"version", "repository", "controller_repository", "controller_ref",
           "controller_sha", "candidate_ref", "candidate_sha", "purpose",
-          "signer", "approval_id", "issued_at", "expires_at"}
+          "signer", "approval_id", "issued_at", "expires_at", "trust_profile"}
 MAX_ENVELOPE_BYTES = 65536
 MAX_VALIDITY = dt.timedelta(hours=24)
+SOLO_OWNER_OPEN_BETA = "SOLO_OWNER_OPEN_BETA"
+INDEPENDENT_REVIEW_RELEASE = "INDEPENDENT_REVIEW_RELEASE"
+TRUST_PROFILES = {SOLO_OWNER_OPEN_BETA, INDEPENDENT_REVIEW_RELEASE}
 
 
 class Denied(ValueError):
@@ -60,7 +63,8 @@ def canonical(payload):
                       allow_nan=False).encode("utf-8")
 
 
-def verify(envelope, public_key_path, controller_sha, candidate_sha, candidate_ref, now):
+def verify(envelope, public_key_path, controller_sha, candidate_sha, candidate_ref,
+           trust_profile, now):
     need(isinstance(envelope, dict) and set(envelope) == {"payload", "signature_b64"},
          "envelope fields invalid")
     payload = envelope["payload"]
@@ -80,6 +84,8 @@ def verify(envelope, public_key_path, controller_sha, candidate_sha, candidate_r
     need(isinstance(candidate_ref, str) and CANDIDATE_REF.fullmatch(candidate_ref) is not None,
          "candidate ref not approved")
     need(payload["candidate_ref"] == candidate_ref, "candidate ref mismatch")
+    need(trust_profile in TRUST_PROFILES, "trust profile not pinned")
+    need(payload["trust_profile"] == trust_profile, "trust profile mismatch")
     need(payload["purpose"] == "authorize_isolated_release_build", "purpose not permitted")
     need(payload["signer"] == "owner:ihacked07", "unexpected signer")
     need(isinstance(payload["approval_id"], str)
@@ -119,6 +125,7 @@ def main(argv=None):
     cli.add_argument("--controller-sha", required=True)
     cli.add_argument("--candidate-sha", required=True)
     cli.add_argument("--candidate-ref", required=True)
+    cli.add_argument("--trust-profile", choices=sorted(TRUST_PROFILES), required=True)
     args = cli.parse_args(argv)
     try:
         source = pathlib.Path(args.approval)
@@ -128,7 +135,7 @@ def main(argv=None):
         # Protected executable code must use the host UTC clock, not CLI fixture time.
         now = dt.datetime.now(dt.timezone.utc)
         verify(envelope, args.owner_public_key, args.controller_sha,
-               args.candidate_sha, args.candidate_ref, now)
+               args.candidate_sha, args.candidate_ref, args.trust_profile, now)
     except (Denied, OSError, ValueError, json.JSONDecodeError, subprocess.TimeoutExpired) as exc:
         print("OWNER_APPROVAL=DENIED: " + str(exc), file=sys.stderr)
         return 1

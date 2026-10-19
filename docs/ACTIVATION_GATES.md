@@ -17,11 +17,45 @@ Public GitHub Free permits branch protection/rulesets and public environment req
 | Isolated GitHub-hosted publishing job (not yet created) | Only after verified Owner Gate: publish images by digest, sign and attest | No publishing solely because structural JSON says PASS |
 | Production runtime | Future Owner-authorized Gate 3 rollout | No automatic deploy from Gate 2 |
 
+## Trust profiles (development policy; neither is active)
+
+The controller has two explicit, signed profiles. Selecting a profile collects
+evidence only; it never enables signing, publishing, deployment, or a release
+workflow.
+
+| Profile | Reviewer requirement | Intended use | Residual risk |
+|---|---|---|---|
+| `SOLO_OWNER_OPEN_BETA` | No invented independent reviewer; public-controller rules, owner signature, exact SHA/ref, short expiry, trusted durable replay ledger, canonical GitHub-hosted evidence and immutable manifest verification remain mandatory | Solo-founder Open Beta only after separate Owner activation decision | One human controls source approval and key ceremony; no independent human review claim is permitted |
+| `INDEPENDENT_REVIEW_RELEASE` | At least one approving human reviewer, stale-review dismissal and review-thread resolution | Higher-assurance/future release | Reviewer quality and GitHub configuration still require continuous verification |
+
+`trust_profile` is part of the detached Owner-signed approval payload. A caller
+cannot change profiles after signing. The default collector profile is
+`INDEPENDENT_REVIEW_RELEASE`, preserving the stricter historical behavior.
+
+Both profiles require a trusted controller commit/ref, source exact SHA/ref,
+read-only authenticated evidence, policy pin checks, an offline Owner approval,
+and a durable single-use approval ledger. The local SQLite implementation is a
+tested adapter, not proof of production durability; activation needs an
+Owner-controlled persistent store with backup, availability and continuity
+checks. GitHub-hosted runners and VM105 are not that store and never become
+release-signing authority.
+
+## Security state machine
+
+`DEVELOPMENT_ONLY_NOT_ACTIVATED` is the only current state. Collector output
+always emits `release_authorized=false`. A future protected controller must
+move only through: `EVIDENCE_COLLECTED` (all exact-SHA checks pass),
+`OWNER_APPROVAL_VERIFIED` (profile-bound detached signature passes),
+`APPROVAL_RESERVED` (durable one-time ledger succeeds), and
+`POST_BUILD_VERIFIED` (real immutable-digest, manifest, Cosign and attestation
+verification succeeds). Any mismatch returns to `DENIED`; no state implies
+deployment authority.
+
 ## Pre-build release authorization (must fail closed)
 
 1. Read only a GitHub-protected/public-controller commit and verify controller ref, SHA and OIDC workflow identity. Verify rulesets and admin-bypass restrictions using authorized API/UI evidence.
 2. Fetch exact private candidate commit and Git tree with read-only installation identity. Candidate branch may be mutable; require the live candidate tip equal signed exact SHA immediately before use, and again before signing.
-3. Verify detached Ed25519 signature with public key pinned in protected controller. Check signer intent, purpose `authorize_isolated_release_build`, SHA/ref/controller binding, 24h maximum TTL, and replay prevention via approval ID ledger in trusted storage (ledger not implemented).
+3. Verify detached Ed25519 signature with public key pinned in protected controller. Check signer intent, signed trust profile, purpose `authorize_isolated_release_build`, SHA/ref/controller binding, 24h maximum TTL, and replay prevention via approval ID ledger in trusted storage.
 4. Fetch complete canonical CI/Container/Supply Chain runs and job pages, prove workflow paths, run IDs, attempts, SHA, conclusions and runner provenance from authenticated GitHub endpoints. PR CI or self-declared payload is insufficient.
 5. Deny if candidate commit is unreachable, deleted, changed, build inputs not exactly SHA-bound, or source origin cannot be proven. Do not depend on a false `protected=true` for private ref.
 
@@ -34,7 +68,7 @@ Build with isolated GitHub-hosted ephemeral environment; use deterministic sourc
 ## External setup blockers
 
 - **Completed bootstrap:** Owner created the separate public controller repository. Never make the private Mantrix source repository public. Controller files remain confined to Draft PR #1.
-- **Partially completed:** `main` and active `protect-main` ruleset were read back from the GitHub API; deletion/force-push rules, PR requirements and one read-only CI check are configured. Required human approvals are still `0`; effective independent review, privileged-workflow isolation and deployment environment protection are not proven.
+- **Partially completed:** `main` and active `protect-main` ruleset were read back from the GitHub API; deletion/force-push rules, PR requirements and one read-only CI check are configured. Required human approvals are still `0`; this is eligible only for the explicitly residual-risk `SOLO_OWNER_OPEN_BETA` development policy, never a claim of independent review or privileged activation.
 - Private repo read-only GitHub App installation with least-privilege scopes must be approved; no public repo default token can automatically read private Mantrix.
 - Owner public key enrollment, trusted durable approval-ID replay storage and an independent human reviewer remain Owner-gated.
 - Isolated build and real Cosign verifier not active.

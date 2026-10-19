@@ -32,7 +32,7 @@ The public CI has passed 41 synthetic/structural tests for the initially importe
 ## Trust boundaries
 
 - **Private source:** `ihacked07/mantrix` remains private. No proprietary application source, customer information or internal deployment configuration belongs here.
-- **Protected policy:** `main` is the intended controller trust boundary, not an arbitrary PR branch. At bootstrap, the active ruleset requires `offline-owner-approval`, blocks forced updates/deletion and requires a PR. **Required human approvals remain at zero; independent review is not yet enforced.**
+- **Protected policy:** `main` is the intended controller trust boundary, not an arbitrary PR branch. At bootstrap, the active ruleset requires `offline-owner-approval`, blocks forced updates/deletion and requires a PR. **Required human approvals remain at zero; independent review is not yet enforced.** The draft has explicit `SOLO_OWNER_OPEN_BETA` and `INDEPENDENT_REVIEW_RELEASE` profiles. The first records residual solo-owner risk; the second requires an independent reviewer. Neither profile is active.
 - **Owner intent:** a future Owner signature must bind an exact candidate SHA/ref, controller SHA/ref, purpose and short expiry. The Owner's **private signing key stays offline** and never enters GitHub, VM105 or CI.
 - **Separate workers:** VM105 is a development/test worker, not a trusted publisher or independent release authority.
 - **Authenticated observations:** any future private-source CI evidence needs separately authorized, least-privilege GitHub App access and independently verified source bytes. A public repository `GITHUB_TOKEN` cannot automatically read private Mantrix source.
@@ -44,7 +44,7 @@ The public CI has passed 41 synthetic/structural tests for the initially importe
 
 1. The controller code is in an **unmerged Draft PR**; current protections are not a claim that the controller is operational.
 2. No independently enrolled Owner public verification key, real Owner approvals or trusted offline signing ceremony exist.
-3. The SQLite proof is not a durable, independently controlled replay ledger. Hosted-runner filesystems are ephemeral; replay protection needs a trusted, recoverable single-writer store and continuity checks.
+3. The SQLite adapter proves atomic single-use behavior only. Hosted-runner filesystems are ephemeral; activation needs an Owner-controlled, durable and recoverable single-writer replay ledger with continuity checks.
 4. The source evidence collector has not authenticated real private-source runs using a least-privilege App.
 5. Checking CI job names and conclusions alone cannot prove the **reviewed security workflow definition** ran; candidate-controlled policy changes must not become trusted evidence.
 6. No isolated release build, real Cosign signature, digest-bound release manifest, attestation verification, independent reviewer gate or production consumer trust migration is active.
@@ -106,11 +106,13 @@ Administration read permissions. The verifier requires:
 - An **active** Ruleset matching the default `main` branch, no bypass actors,
   deletion/force-push restrictions, strict GitHub Actions check
   `offline-owner-approval`, and squash-only PR history.
-- At least **one independently approving human reviewer**, stale-review
-  invalidation and conversation resolution.
+- For `INDEPENDENT_REVIEW_RELEASE`, at least **one independently approving
+  human reviewer**, stale-review invalidation and conversation resolution.
+  `SOLO_OWNER_OPEN_BETA` intentionally permits zero reviewers only while
+  retaining all other structural checks and recording that residual risk.
 
-**As of the current GitHub readback, approvals are still zero. This check
-deliberately FAILS**, and does not claim activation. Ruleset administrators
+**As of the current GitHub readback, approvals are still zero. The independent
+profile deliberately FAILS**, and no profile claims activation. Ruleset administrators
 retain configuration-changing power; continuous readback, Owner offline
 authorization, workflow provenance and durable replay protection are separate
 release prerequisites. Unit tests use synthetic GitHub API responses only.

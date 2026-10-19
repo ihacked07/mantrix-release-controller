@@ -20,6 +20,7 @@ import verify_approval as policy
 CONTROL = "b" * 40
 CANDIDATE = "a" * 40
 REF = "refs/heads/release/candidate/fixture"
+PROFILE = policy.SOLO_OWNER_OPEN_BETA
 
 
 class ReplayLedgerTests(unittest.TestCase):
@@ -54,7 +55,7 @@ class ReplayLedgerTests(unittest.TestCase):
             "version": 1, "repository": "ihacked07/mantrix",
             "controller_repository": "ihacked07/mantrix-release-controller",
             "controller_ref": "refs/heads/main", "controller_sha": CONTROL,
-            "candidate_ref": REF, "candidate_sha": sha,
+            "candidate_ref": REF, "candidate_sha": sha, "trust_profile": PROFILE,
             "purpose": "authorize_isolated_release_build",
             "signer": "owner:ihacked07", "approval_id": approval_id,
             "issued_at": (now-dt.timedelta(minutes=5)).isoformat().replace("+00:00","Z"),
@@ -72,7 +73,7 @@ class ReplayLedgerTests(unittest.TestCase):
 
     def reserve(self, envelope):
         return reserve.verify_and_reserve(envelope, self.public, CONTROL,
-                                          CANDIDATE, REF, self.ledger)
+                                          CANDIDATE, REF, PROFILE, self.ledger)
 
     def test_first_valid_reservation_and_persistent_replay_rejected(self):
         approval = self.signed()
@@ -92,7 +93,13 @@ class ReplayLedgerTests(unittest.TestCase):
         modified = self.signed(sha="c" * 40)
         with self.assertRaises(policy.Denied):
             reserve.verify_and_reserve(modified, self.public, CONTROL,
-                                       "c" * 40, REF, self.ledger)
+                                       "c" * 40, REF, PROFILE, self.ledger)
+
+    def test_profile_is_signature_bound(self):
+        with self.assertRaises(policy.Denied):
+            reserve.verify_and_reserve(self.signed(), self.public, CONTROL,
+                                       CANDIDATE, REF,
+                                       policy.INDEPENDENT_REVIEW_RELEASE, self.ledger)
 
     def test_tampering_denied_before_ledger_access(self):
         approval = self.signed()
@@ -123,7 +130,8 @@ class ReplayLedgerTests(unittest.TestCase):
             reserve.main(["--approval", "/nonexistent", "--owner-public-key",
                           str(self.public), "--controller-sha", CONTROL,
                           "--candidate-sha", CANDIDATE, "--candidate-ref", REF,
-                          "--ledger", str(self.ledger), "--now", "2026-10-19T12:00:00Z"])
+                          "--trust-profile", PROFILE, "--ledger", str(self.ledger),
+                          "--now", "2026-10-19T12:00:00Z"])
         self.assertEqual(rejected.exception.code, 2)
 
 
