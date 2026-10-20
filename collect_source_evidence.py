@@ -79,7 +79,7 @@ TRUSTED_SECURITY_SCRIPT_BLOBS = {
     "scripts/monitoring/replica_metadata_contract.py": "77ce93239b2dd43019acf59cdc2af36636be66c8",
     "scripts/monitoring/test_replica_metadata_contract.py": "03840c0b71f48957b2619953f8b7a58cf417b728",
     "scripts/monitoring/replica_metadata_sql_contract.py": "db9a297a6776349465af729a9aeb27aca9c7c291",
-    "scripts/monitoring/test_replica_metadata_sql_contract.py": "c976ebc55179a6d8751db4091a9340e456cd37c1",
+    "scripts/monitoring/test_replica_metadata_sql_contract.py": "61c39a7384b7032c659b273f98b38bdb120cd7a6",
 }
 
 # Pinned to the reviewed workflow job matrix; unexpected/missing jobs fail closed.

@@ -235,7 +235,7 @@ class ControllerEvidenceTests(unittest.TestCase):
         self.assertEqual(c.TRUSTED_SECURITY_SCRIPT_BLOBS["scripts/monitoring/replica_metadata_sql_contract.py"],
                          "db9a297a6776349465af729a9aeb27aca9c7c291")
         self.assertEqual(c.TRUSTED_SECURITY_SCRIPT_BLOBS["scripts/monitoring/test_replica_metadata_sql_contract.py"],
-                         "c976ebc55179a6d8751db4091a9340e456cd37c1")
+                         "61c39a7384b7032c659b273f98b38bdb120cd7a6")
 
     def test_independent_review_profile_fails_closed_without_reviewer(self):
         for scenario in ("reviewer_missing", "ruleset_disabled",
