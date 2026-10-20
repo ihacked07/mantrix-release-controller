@@ -8,7 +8,9 @@ import pathlib
 import sqlite3
 import subprocess
 import tempfile
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 
 BASE = pathlib.Path(__file__).resolve().parents[1]
 import sys
@@ -80,6 +82,31 @@ class ReplayLedgerTests(unittest.TestCase):
         self.assertTrue(self.reserve(approval))
         with self.assertRaises(policy.Denied):
             self.reserve(approval)
+        with sqlite3.connect(self.ledger) as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM consumed_approvals")
+                             .fetchone()[0], 1)
+
+    def test_concurrent_signed_replay_has_exactly_one_durable_winner(self):
+        # Create the owner-only file before the contenders race. This exercises
+        # the SQLite transaction/unique-key boundary, not unsafe first-create.
+        reserve.safe_ledger_path(self.ledger)
+        approval = self.signed("synthetic-concurrent-approval")
+        contenders = 4
+        start = threading.Barrier(contenders)
+
+        def reserve_after_barrier():
+            start.wait(timeout=5)
+            try:
+                self.reserve(approval)
+                return "reserved"
+            except policy.Denied:
+                return "denied"
+
+        with ThreadPoolExecutor(max_workers=contenders) as workers:
+            outcomes = list(workers.map(lambda _: reserve_after_barrier(),
+                                        range(contenders)))
+        self.assertEqual(outcomes.count("reserved"), 1)
+        self.assertEqual(outcomes.count("denied"), contenders - 1)
         with sqlite3.connect(self.ledger) as conn:
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM consumed_approvals")
                              .fetchone()[0], 1)
