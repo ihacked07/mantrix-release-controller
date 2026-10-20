@@ -5,6 +5,7 @@ import datetime as dt
 import importlib.util
 import json
 import pathlib
+import shutil
 import sqlite3
 import subprocess
 import tempfile
@@ -108,6 +109,19 @@ class ReplayLedgerTests(unittest.TestCase):
         self.assertEqual(outcomes.count("reserved"), 1)
         self.assertEqual(outcomes.count("denied"), contenders - 1)
         with sqlite3.connect(self.ledger) as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM consumed_approvals")
+                             .fetchone()[0], 1)
+
+    def test_recovered_private_ledger_retains_replay_refusal(self):
+        approval = self.signed("synthetic-recovery-approval")
+        self.assertTrue(self.reserve(approval))
+        recovered = self.owner / "recovered.sqlite3"
+        shutil.copy2(self.ledger, recovered)
+        recovered.chmod(0o600)
+        with self.assertRaises(policy.Denied):
+            reserve.verify_and_reserve(approval, self.public, CONTROL,
+                                       CANDIDATE, REF, PROFILE, recovered)
+        with sqlite3.connect(recovered) as conn:
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM consumed_approvals")
                              .fetchone()[0], 1)
 

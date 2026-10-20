@@ -70,7 +70,7 @@ Build with isolated GitHub-hosted ephemeral environment; use deterministic sourc
 - **Completed bootstrap:** Owner created the separate public controller repository. Never make the private Mantrix source repository public. Controller files remain confined to Draft PR #1.
 - **Partially completed:** `main` and active `protect-main` ruleset were read back from the GitHub API; deletion/force-push rules, PR requirements and one read-only CI check are configured. Required human approvals are still `0`; this is eligible only for the explicitly residual-risk `SOLO_OWNER_OPEN_BETA` development policy, never a claim of independent review or privileged activation.
 - Private repo read-only GitHub App installation with least-privilege scopes must be approved; no public repo default token can automatically read private Mantrix.
-- Owner public key enrollment, trusted durable approval-ID replay storage and an independent human reviewer remain Owner-gated.
+- Owner public key enrollment, trusted durable approval-ID replay storage and an independent human reviewer remain Owner-gated. `owner_key_enrollment.py` is a synthetic-testable ceremony validator: it requires a private owner-controlled Ed25519 public-key file and an independently recorded SHA-256 SPKI fingerprint, emits no key copy, and always reports `RELEASE_AUTHORIZED=NO`.
 - Isolated build and real Cosign verifier not active.
 - No release artifacts until exact-SHA evidence, operational Pre-P10, source mapping and Owner release gate.
 - Gate 3 remains independently authorized.
