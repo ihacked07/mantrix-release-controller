@@ -161,7 +161,7 @@ class ControllerEvidenceTests(unittest.TestCase):
         self.assertFalse(value["workflow_dependency_policy_verified"])
         self.assertEqual(value["trust_profile"], c.INDEPENDENT_REVIEW_RELEASE)
         self.assertEqual(len(value["reviewed_workflow_blob_pins"]), 3)
-        self.assertEqual(len(value["reviewed_security_script_blob_pins"]), 10)
+        self.assertEqual(len(value["reviewed_security_script_blob_pins"]), 14)
         self.assertEqual(value["reviewed_security_script_blob_pins"][
             "scripts/dependency_scope.mjs"],
             c.TRUSTED_SECURITY_SCRIPT_BLOBS["scripts/dependency_scope.mjs"])
@@ -217,7 +217,7 @@ class ControllerEvidenceTests(unittest.TestCase):
 
     def test_workflow_blob_pins_require_independent_review(self):
         self.assertEqual(c.TRUSTED_WORKFLOW_BLOBS["ci"],
-                         "c37404b8911efc3949e4e6f15dde1221a1d54c74")
+                         "6813a3dbf3296cb7922f0ce26b0bc6f71c4db11c")
         self.assertEqual(len(c.TRUSTED_WORKFLOW_BLOBS), 3)
         with self.assertRaisesRegex(c.Refused, "reviewed trust pin"):
             self.capture("tampered_workflow")
@@ -225,7 +225,17 @@ class ControllerEvidenceTests(unittest.TestCase):
     def test_rejects_changed_security_policy_script(self):
         with self.assertRaisesRegex(c.Refused, "policy script changed"):
             self.capture("tampered_security_script")
-        self.assertEqual(len(c.TRUSTED_SECURITY_SCRIPT_BLOBS), 10)
+        self.assertEqual(len(c.TRUSTED_SECURITY_SCRIPT_BLOBS), 14)
+
+    def test_replica_python_executable_dependency_blobs_pinned(self):
+        self.assertEqual(c.TRUSTED_SECURITY_SCRIPT_BLOBS["scripts/monitoring/replica_metadata_contract.py"],
+                         "77ce93239b2dd43019acf59cdc2af36636be66c8")
+        self.assertEqual(c.TRUSTED_SECURITY_SCRIPT_BLOBS["scripts/monitoring/test_replica_metadata_contract.py"],
+                         "03840c0b71f48957b2619953f8b7a58cf417b728")
+        self.assertEqual(c.TRUSTED_SECURITY_SCRIPT_BLOBS["scripts/monitoring/replica_metadata_sql_contract.py"],
+                         "db9a297a6776349465af729a9aeb27aca9c7c291")
+        self.assertEqual(c.TRUSTED_SECURITY_SCRIPT_BLOBS["scripts/monitoring/test_replica_metadata_sql_contract.py"],
+                         "c976ebc55179a6d8751db4091a9340e456cd37c1")
 
     def test_independent_review_profile_fails_closed_without_reviewer(self):
         for scenario in ("reviewer_missing", "ruleset_disabled",

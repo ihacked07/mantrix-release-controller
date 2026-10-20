@@ -38,7 +38,12 @@ TRUST_PROFILES = {
 }
 
 
-# Proposed CI YAML pin update for separate Owner/code review:
+# Review-only proposed PR #115/116 pins; NOT approved, never auto-learn
+# Previous Owner-approved development CI blob was c37404b8911efc3949e4e6f15dde1221a1d54c74.
+# Proposed exact CI blob 6813a3dbf3296cb7922f0ce26b0bc6f71c4db11c needs fresh exact SHA hosted CI + Owner approval.
+# Four new direct Python CI dependencies pinned below. Controller main unchanged.
+
+# Historical CI YAML pin update for separate Owner/code review:
 # CI pinned SHA originates from private development PR #110 exact HEAD
 # 9ab0e6ff9103d89ff57359d77495d2b05f624fc4. This proposal does NOT independently approve or
 # activate the new policy. Remaining workflows/scripts preserve frozen pins.
@@ -49,7 +54,7 @@ TRUST_PROFILES = {
 # the new workflow/policy is independently reviewed and these pins are updated
 # on the separately protected controller. Do not auto-learn values from a PR.
 TRUSTED_WORKFLOW_BLOBS = {
-    "ci": "c37404b8911efc3949e4e6f15dde1221a1d54c74",
+    "ci": "6813a3dbf3296cb7922f0ce26b0bc6f71c4db11c",
     "container": "c4c5e7ab00de1f6d395e3220bc8356908097c954",
     "supply": "318d6d4b7cf7d5ae74d34f66d5687d9bcd69d612",
 }
@@ -71,6 +76,10 @@ TRUSTED_SECURITY_SCRIPT_BLOBS = {
     "scripts/caddy_vulnerability_policy_gate.test.mjs": "fc93693dbc51bcd9f47d564c3444185ba378bcd6",
     "scripts/run_caddy_vulnerability_policy_gate.sh": "e7cf3ccca0e92e669e35a076b324e533d73fd1f4",
     "scripts/generate_caddy_openpgp_evidence.sh": "8841a1f4e62bf1ba0efd911d654a5925248f7e34",
+    "scripts/monitoring/replica_metadata_contract.py": "77ce93239b2dd43019acf59cdc2af36636be66c8",
+    "scripts/monitoring/test_replica_metadata_contract.py": "03840c0b71f48957b2619953f8b7a58cf417b728",
+    "scripts/monitoring/replica_metadata_sql_contract.py": "db9a297a6776349465af729a9aeb27aca9c7c291",
+    "scripts/monitoring/test_replica_metadata_sql_contract.py": "c976ebc55179a6d8751db4091a9340e456cd37c1",
 }
 
 # Pinned to the reviewed workflow job matrix; unexpected/missing jobs fail closed.
