@@ -95,12 +95,16 @@ decision still requires a fresh trusted policy check, separate Owner approval,
 authenticated exact-SHA provenance and replay protection. The implementation
 remains unmerged, unprivileged and development-only.
 
-## Proposed trust-pin review (not accepted)
+## CI pin review: accepted for development only (2026-10-20)
 
-A **separate stacked Draft PR** contains a proposed CI YAML pin update
-to the exact private PR #110 development blob. The proposal has a
+The Owner accepted the CI YAML pin update originally proposed in
+Public Controller PR #2 for exact private PR #110 development blob. It has a
 security-oriented change assessment in
 [`docs/CI_POLICY_PIN_REVIEW_PR110.md`](CI_POLICY_PIN_REVIEW_PR110.md).
-It remains pending Owner policy review. Public Controller PR #1 keeps the
-previous conservative pin until deliberate acceptance. Neither Draft PR
-authorizes release or changes the production/frozen repository.
+PR #2 was merged into the unmerged PR #1 development branch at exact
+commit `4efadcf10fabd2a4edffda11d6411c4a87472907`. The reviewed
+CI blob now matches Private PR #110/#111; all thirteen policy blob pins
+match Private PR #111. This was an Owner-approved **development pin change**,
+not privileged release activation, independent human review, or permission
+to merge Public PR #1 into protected `main`. Frozen/production refs remain
+untouched.

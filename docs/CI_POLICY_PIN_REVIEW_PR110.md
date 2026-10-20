@@ -1,6 +1,6 @@
 # Gate 3 — proposed CI YAML trust-pin update for PR #110
 
-**Status: PROPOSED_FOR_OWNER_REVIEW; NOT ACTIVATED**
+**Status: OWNER_APPROVED_FOR_CONTROLLER_DEVELOPMENT; TRUSTED_RELEASE_NOT_ACTIVATED**
 
 This file is a development review proposal in a *stacked Draft PR* targeting
 the existing unmerged Public Controller PR #1 branch. It is **not** independent
@@ -72,3 +72,29 @@ development changes:
 Retain the original pinned value in Public Controller PR #1 until this stacked
 review proposal is explicitly dispositioned. Never merge the proposed branch
 automatically merely because its offline development tests pass.
+
+
+## Owner decision and actual merge (2026-10-20)
+
+The Owner explicitly approved the **exact Gate 3 CI workflow Git blob pin**
+`c37404b8911efc3949e4e6f15dde1221a1d54c74`, as proposed in Public
+Controller PR #2. That PR was merged into the **development branch**
+`bootstrap/controller-policy-ci-20261020`, merge commit
+`4efadcf10fabd2a4edffda11d6411c4a87472907`.
+
+At this exact merge commit, authenticated GitHub tree comparison of the private
+PR #111 source SHA `523c74033100ff0c3e690607656615eeb1c4ff52`
+against controller constants returned **13/13 identical reviewed blob IDs**
+(3 canonical workflow YAMLs, 10 security scripts). Push CI
+[39360473516](https://github.com/ihacked07/mantrix-release-controller/actions/runs/39360473516)
+and pull-request CI
+[39360478648](https://github.com/ihacked07/mantrix-release-controller/actions/runs/39360478648)
+both succeeded at merge commit. This is a **development policy acceptance**,
+NOT independent reviewer approval, activation of `main`, cryptographic
+Owner-signature enrollment, verified full dependency closure, or permission to
+publish or deploy.
+
+**Owner decision:** `OWNER_GATE3_CI_PIN=APPROVED_FOR_DEVELOPMENT`
+**Public Controller main:** unchanged; protected, not activated.
+**Release authority:** `NO`.
+**Pre-P10:** `BLOCKED`.
