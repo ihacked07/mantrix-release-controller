@@ -67,8 +67,8 @@ TRUSTED_WORKFLOW_BLOBS = {
 # scanner binaries, and invoked programs require separate independent review.
 TRUSTED_SECURITY_SCRIPT_BLOBS = {
     "scripts/dependency_scope.mjs": "0dd293584e32cd11c31297c5fc78ce4273364173",
-    "scripts/vulnerability_policy_gate.mjs": "896ee165788fc964954b479b9fcce2c259337dcd",
-    "scripts/vulnerability_policy_gate.test.mjs": "5607979b9a67f0115b3d7e85b639322ab9d153c1",
+    "scripts/vulnerability_policy_gate.mjs": "9d2a1540fd0866baacddcf7c1458704c9130fd2e",
+    "scripts/vulnerability_policy_gate.test.mjs": "12083c01200b319fc8ee0c7797c1165d16dc428b",
     "scripts/run_vulnerability_policy_gate.sh": "514ead10aafb332db80d2d4eb3fce8c8e62ecdda",
     "scripts/generate_source_sbom.mjs": "e18fb05f1de1210741b0164892442feaaa459d0d",
     "scripts/supply_chain_policy.sh": "0622705edc00fb1584e5ea5a69878800c54ed4c2",
