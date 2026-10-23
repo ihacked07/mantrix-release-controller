@@ -30,6 +30,9 @@ RELEASE_DESCRIPTOR_BLOBS = {
     "cmd/go.mod": "e2412770ff458e25c2b4811517e54aaeec18eea5",
     "cmd/go.sum": "a31cb38f313389772c269a9818cd0b33d51ddc55",
     "services/seed-node/go.mod": "ed9f9e39c7e52ad65ed88ec33506057a0e21d2f9",
+    "cmd/digest-deploy-consumer/main.go": "3f88c15a9999d21c24074a9e01a5a49b3f0c2833",
+    "cmd/digest-deploy-consumer/open_trusted_compose_linux.go": "cbf9e72dbb1c1e825c88611c822ee53f89661d42",
+    "cmd/digest-deploy-consumer/open_trusted_compose_unsupported.go": "d16cc91a200a757b2235971f933efcea2c4b05be",
 }
 
 UNVERIFIED_EXTERNAL = (
