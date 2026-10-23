@@ -38,6 +38,8 @@ class FakeApi:
     def __init__(self, error=""):
         self.error = error
         self.reads = 0
+        self.pr_reads = 0
+        self.review_reads = 0
 
     def get(self, path):
         if self.error == "api_error":
@@ -51,14 +53,23 @@ class FakeApi:
             return ruleset(0 if self.error == "insufficient_rules" else 1,
                            enabled=not (self.error == "disabled_rules" or self.error == "changed_rules" and self.reads > 1))
         if path == "/repos/" + c.SOURCE + "/pulls/7":
+            self.pr_reads += 1
             repo = "other/repo" if self.error == "wrong_repository" else c.SOURCE
-            return {"number": 8 if self.error == "wrong_pr" else 7, "state": "open", "draft": False,
-                    "head": {"sha": "b" * 40 if self.error == "old_head" else SHA, "ref": "candidate", "repo": {"full_name": repo}},
-                    "base": {"repo": {"full_name": repo}}, "user": {"id": AUTHOR}}
+            changed = self.pr_reads > 1
+            return {"number": 8 if self.error == "wrong_pr" else 7,
+                    "state": "closed" if self.error == "state_changed" and changed else "open",
+                    "draft": self.error == "draft_changed" and changed,
+                    "head": {"sha": "b" * 40 if self.error == "old_head" or self.error == "head_changed" and changed else SHA,
+                             "ref": "candidate",
+                             "repo": {"full_name": "other/head" if self.error == "head_repo_changed" and changed else repo}},
+                    "base": {"ref": "other-target" if self.error == "base_changed" and changed else "candidate-base",
+                             "repo": {"full_name": "other/base" if self.error == "base_repo_changed" and changed else repo}},
+                    "user": {"id": 11 if self.error == "author_changed" and changed else AUTHOR}}
         if path == "/repos/" + c.SOURCE + "/commits/" + SHA:
             return {"sha": SHA, "commit": {"committer": {"date": "2026-10-23T00:00:00Z"}}}
         prefix = "/repos/" + c.SOURCE + "/pulls/7/reviews?per_page=100&page="
         if path.startswith(prefix):
+            self.review_reads += 1
             page = int(path[len(prefix):])
             if self.error == "malformed_page": return [{}] * 101
             if self.error == "incomplete_page":
@@ -81,6 +92,8 @@ class FakeApi:
         if self.error == "old_timestamp": return [self.review(submitted="2026-10-22T00:00:00Z")]
         if self.error == "wrong_review_pr":
             row = self.review(); row["pull_request_url"] += "-wrong"; return [row]
+        if self.error == "review_changed" and self.review_reads > 1:
+            return [self.review(state="COMMENTED")]
         return [self.review()]
 
 
@@ -105,6 +118,12 @@ class ReviewAttestationTests(unittest.TestCase):
     def test_empty_or_candidate_controlled_eligibility_refused(self):
         with self.assertRaises(r.source.Refused): self.verify(ids=frozenset())
         with self.assertRaises(r.source.Refused): self.verify(ids=frozenset({"not-an-actor"}))
+
+    def test_refuses_candidate_or_review_drift_during_collection(self):
+        for error in ("head_changed", "draft_changed", "state_changed", "base_changed",
+                      "base_repo_changed", "head_repo_changed", "author_changed", "review_changed"):
+            with self.subTest(error=error), self.assertRaises(r.source.Refused):
+                self.verify(error)
 
 
 if __name__ == "__main__":

@@ -123,7 +123,12 @@ release prerequisites. Unit tests use synthetic GitHub API responses only.
 `INDEPENDENT_REVIEW_RELEASE`. It requires an open non-draft private-source PR,
 exact head SHA, exact-head `APPROVED` review newer than candidate commit,
 non-author actor ID, independently pinned eligible actor IDs, complete review
-pagination, and unchanged controller rules before and after collection. Current
+pagination, and unchanged controller rules before and after collection. It
+captures the candidate snapshot and complete review set twice, then reads the
+candidate snapshot once more immediately before its result; any changed head,
+draft/state, base/head repository or ref, author, review evidence, or ruleset
+refuses. GitHub offers no atomic cross-endpoint snapshot, so this narrows but
+does not replace a protected merge-time review gate. Current
 eligible actor set is intentionally empty. Real review verification therefore
 fails closed until a separate protected-controller policy change independently
 approves eligible IDs and effective GitHub protection requires one approval.
@@ -137,3 +142,9 @@ images, Action internals, package/tool registries, registry availability, built
 images, SBOMs, provenance, signatures, and transparency-log evidence remain
 explicitly unverified external dependencies. A matching descriptor set is a
 source-review observation, never release authorization.
+
+Both contracts are standalone read-only development helpers. They are not
+wired into `collect_source_evidence.py`, a protected Controller workflow, or a
+privileged release path. Wiring them requires separately pinned eligible actor
+IDs, an approved invocation contract, and protected-controller activation;
+until then every helper result remains `release_authorized: false`.

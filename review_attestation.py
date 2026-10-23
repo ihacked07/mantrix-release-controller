@@ -39,6 +39,63 @@ def review_pages(api, number):
     raise source.Refused("incomplete GitHub review pagination")
 
 
+def candidate_snapshot(api, pull_number, candidate_sha):
+    pr = api.get(f"/repos/{source.SOURCE}/pulls/{pull_number}")
+    source.require(isinstance(pr, dict) and pr.get("number") == pull_number and pr.get("state") == "open" and
+                   pr.get("draft") is False, "reviewed pull request is not an open non-draft candidate")
+    sides = {}
+    for side in ("head", "base"):
+        record = pr.get(side)
+        source.require(isinstance(record, dict) and isinstance(record.get("repo"), dict) and
+                       record["repo"].get("full_name") == source.SOURCE and
+                       isinstance(record.get("ref"), str) and record["ref"],
+                       "reviewed pull request repository or ref mismatch")
+        sides[side] = {"repo": record["repo"]["full_name"], "ref": record["ref"]}
+    source.require(pr["head"].get("sha") == candidate_sha, "reviewed pull request head SHA mismatch")
+    author = pr.get("user")
+    source.require(isinstance(author, dict) and type(author.get("id")) is int and author["id"] > 0,
+                   "reviewed pull request author missing")
+    commit = api.get(f"/repos/{source.SOURCE}/commits/{candidate_sha}")
+    source.require(isinstance(commit, dict) and commit.get("sha") == candidate_sha and
+                   isinstance(commit.get("commit"), dict) and isinstance(commit["commit"].get("committer"), dict),
+                   "candidate commit metadata missing")
+    return {"number": pull_number, "state": pr["state"], "draft": pr["draft"],
+            "head": {**sides["head"], "sha": candidate_sha}, "base": sides["base"],
+            "author_id": author["id"], "commit_time": utc(commit["commit"]["committer"].get("date"))}
+
+
+def current_approvals(records, pull_number, snapshot, eligible_ids, minimum_reviewers):
+    expected_url = f"https://api.github.com/repos/{source.SOURCE}/pulls/{pull_number}"
+    latest = {}
+    fingerprint = []
+    for review in records:
+        user = review.get("user")
+        source.require(isinstance(user, dict) and type(user.get("id")) is int and user["id"] > 0 and
+                       isinstance(user.get("login"), str) and user["login"], "review author identity missing")
+        source.require(isinstance(review.get("state"), str) and review.get("pull_request_url") == expected_url and
+                       review.get("commit_id") == snapshot["head"]["sha"],
+                       "review is not bound to exact pull request head")
+        submitted = utc(review.get("submitted_at"))
+        source.require(submitted >= snapshot["commit_time"], "review predates candidate commit")
+        key = user["id"]
+        sort_key = (submitted, review["id"])
+        if key not in latest or sort_key > latest[key][0]:
+            latest[key] = (sort_key, review)
+        fingerprint.append((review["id"], key, review["state"], review["commit_id"],
+                            review["submitted_at"], review["pull_request_url"]))
+
+    approvals = []
+    for actor, (_, review) in latest.items():
+        if review["state"] != "APPROVED":
+            continue
+        source.require(actor != snapshot["author_id"], "self-approval is not independent")
+        source.require(actor in eligible_ids, "reviewer is not independently eligible")
+        approvals.append({"id": review["id"], "actor_id": actor, "submitted_at": review["submitted_at"],
+                          "commit_id": review["commit_id"]})
+    source.require(len(approvals) >= minimum_reviewers, "insufficient current independent approvals")
+    return approvals, tuple(sorted(fingerprint))
+
+
 def review_attestation(api, pull_number, candidate_sha, profile=source.INDEPENDENT_REVIEW_RELEASE,
                        eligible_ids=ELIGIBLE_INDEPENDENT_REVIEWER_IDS):
     source.require(source.SHA.fullmatch(candidate_sha) is not None, "invalid candidate SHA")
@@ -49,51 +106,18 @@ def review_attestation(api, pull_number, candidate_sha, profile=source.INDEPENDE
                    "no independently pinned eligible reviewer IDs")
 
     protection_before = source.verify_protection(api, profile)
-    pr = api.get(f"/repos/{source.SOURCE}/pulls/{pull_number}")
-    source.require(isinstance(pr, dict) and pr.get("number") == pull_number and pr.get("state") == "open" and
-                   pr.get("draft") is False, "reviewed pull request is not an open non-draft candidate")
-    for side in ("head", "base"):
-        record = pr.get(side)
-        source.require(isinstance(record, dict) and isinstance(record.get("repo"), dict) and
-                       record["repo"].get("full_name") == source.SOURCE, "reviewed pull request repository mismatch")
-    head = pr["head"]
-    source.require(head.get("sha") == candidate_sha and isinstance(head.get("ref"), str) and head["ref"],
-                   "reviewed pull request head SHA mismatch")
-    author = pr.get("user")
-    source.require(isinstance(author, dict) and type(author.get("id")) is int and author["id"] > 0,
-                   "reviewed pull request author missing")
-    commit = api.get(f"/repos/{source.SOURCE}/commits/{candidate_sha}")
-    source.require(isinstance(commit, dict) and commit.get("sha") == candidate_sha and
-                   isinstance(commit.get("commit"), dict) and isinstance(commit["commit"].get("committer"), dict),
-                   "candidate commit metadata missing")
-    commit_time = utc(commit["commit"]["committer"].get("date"))
-
-    expected_url = f"https://api.github.com/repos/{source.SOURCE}/pulls/{pull_number}"
-    latest = {}
-    for review in review_pages(api, pull_number):
-        user = review.get("user")
-        source.require(isinstance(user, dict) and type(user.get("id")) is int and user["id"] > 0 and
-                       isinstance(user.get("login"), str) and user["login"], "review author identity missing")
-        source.require(review.get("pull_request_url") == expected_url and review.get("commit_id") == candidate_sha,
-                       "review is not bound to exact pull request head")
-        submitted = utc(review.get("submitted_at"))
-        source.require(submitted >= commit_time, "review predates candidate commit")
-        key = user["id"]
-        sort_key = (submitted, review["id"])
-        if key not in latest or sort_key > latest[key][0]:
-            latest[key] = (sort_key, review)
-
-    approvals = []
-    for actor, (_, review) in latest.items():
-        if review.get("state") != "APPROVED":
-            continue
-        source.require(actor != author["id"], "self-approval is not independent")
-        source.require(actor in eligible_ids, "reviewer is not independently eligible")
-        approvals.append({"id": review["id"], "actor_id": actor, "submitted_at": review["submitted_at"],
-                          "commit_id": review["commit_id"]})
-    source.require(len(approvals) >= policy["minimum_reviewers"], "insufficient current independent approvals")
+    snapshot_before = candidate_snapshot(api, pull_number, candidate_sha)
+    _, reviews_before = current_approvals(review_pages(api, pull_number), pull_number, snapshot_before,
+                                           eligible_ids, policy["minimum_reviewers"])
     protection_after = source.verify_protection(api, profile)
+    snapshot_after = candidate_snapshot(api, pull_number, candidate_sha)
+    approvals, reviews_after = current_approvals(review_pages(api, pull_number), pull_number, snapshot_after,
+                                                              eligible_ids, policy["minimum_reviewers"])
+    snapshot_final = candidate_snapshot(api, pull_number, candidate_sha)
     source.require(protection_before == protection_after, "controller ruleset changed during review collection")
+    source.require(snapshot_before == snapshot_after == snapshot_final,
+                   "candidate pull request changed during review collection")
+    source.require(reviews_before == reviews_after, "review evidence changed during review collection")
     return {"release_authorized": False, "independent_review_verified": True,
             "candidate_sha": candidate_sha, "pull_request_number": pull_number,
             "reviewer_actor_ids": sorted(row["actor_id"] for row in approvals),
