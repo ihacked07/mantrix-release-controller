@@ -135,9 +135,10 @@ approves eligible IDs and effective GitHub protection requires one approval.
 It accepts neither candidate-supplied review JSON, usernames, self-reported
 roles, nor an Owner signature as a substitute.
 
-`release_dependency_contract.py` adds exact Git blob checks for 24 release
+`release_dependency_contract.py` adds exact Git blob checks for 27 release
 descriptors: release workflow, three local verification helpers, ten release
-Dockerfiles, five frontend lockfiles, and five active Go module files. Runner
+Dockerfiles, five frontend lockfiles, five active Go module files, and three
+digest-deploy-consumer executable source files. Runner
 images, Action internals, package/tool registries, registry availability, built
 images, SBOMs, provenance, signatures, and transparency-log evidence remain
 explicitly unverified external dependencies. A matching descriptor set is a

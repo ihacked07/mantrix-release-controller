@@ -44,7 +44,7 @@ class FakeApi:
 class ReleaseDependencyTests(unittest.TestCase):
     def test_exact_descriptors_and_explicit_external_gap(self):
         value = d.verify(FakeApi(), SHA)
-        self.assertEqual(len(value["verified_descriptor_blobs"]), 24)
+        self.assertEqual(len(value["verified_descriptor_blobs"]), 27)
         self.assertFalse(value["release_authorized"])
         self.assertFalse(value["release_dependency_policy_verified"])
         self.assertTrue(value["unverified_external_dependencies"])
@@ -65,6 +65,16 @@ class ReleaseDependencyTests(unittest.TestCase):
         self.assertEqual(set(api.requests), {
             "/repos/" + c.SOURCE + "/contents/" + path + "?ref=" + SHA
             for path in d.RELEASE_DESCRIPTOR_BLOBS
+        })
+
+    def test_digest_consumer_executable_inputs_are_pinned(self):
+        self.assertEqual({
+            "cmd/digest-deploy-consumer/main.go",
+            "cmd/digest-deploy-consumer/open_trusted_compose_linux.go",
+            "cmd/digest-deploy-consumer/open_trusted_compose_unsupported.go",
+        }, {
+            path for path in d.RELEASE_DESCRIPTOR_BLOBS
+            if path.startswith("cmd/digest-deploy-consumer/")
         })
 
     def test_duplicate_metadata_json_refused_before_contract_receives_it(self):
